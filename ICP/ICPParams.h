@@ -4,6 +4,7 @@
  */
 
 #include <cmath>
+#include <ceres/solver.h>
 
 namespace ICP
 {
@@ -121,6 +122,26 @@ struct OuterParams
     double convergenceTol = 1e-9;  // Relative RMS change threshold
     float maxDist = 100.0f;        // Max ray distance for correspondences
     bool verbose = false;          // Print per-iteration information
+};
+
+/**
+ * Ceres-specific solver options.
+ */
+struct CeresICPOptions
+{
+    int maxIterations = 12;
+    double functionTolerance = 1e-9;
+    double gradientTolerance = 1e-9;
+    double parameterTolerance = 1e-9;
+
+    bool useLM = false;  // Use Levenberg-Marquardt (true) or Gauss-Newton (false)
+    double initialTrustRegionRadius = 1e4;
+    double maxTrustRegionRadius = 1e8;
+
+    ceres::LinearSolverType linearSolverType = ceres::DENSE_QR;
+
+    bool verbose = false;
+    bool silent = false;  // Suppress all output
 };
 
 } // namespace ICP

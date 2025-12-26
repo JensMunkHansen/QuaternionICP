@@ -1,5 +1,6 @@
 find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(Sophus REQUIRED)
 include(spsArgs)
 find_package(tinyexr REQUIRED)
 find_package(GridSearch REQUIRED)
@@ -17,9 +18,11 @@ target_include_directories(${TARGET_NAME} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
 )
 target_link_libraries(${TARGET_NAME} PUBLIC
+    build
     Eigen3::Eigen
-    Ceres::ceres
     GridSearch::GridSearch
+    Ceres::ceres
+    Sophus::Sophus
     tinyexr::tinyexr
     taywee::args
 )

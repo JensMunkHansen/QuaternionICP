@@ -54,7 +54,23 @@ struct CommonOptions
     int innerIterations = 5;
     double stepTol = 1e-9;
     double rmsTol = 1e-9;
-    double damping = 0.0;
+
+    // Solver type selection
+    enum class Solver
+    {
+        GaussNewton,
+        LevenbergMarquardt
+    };
+    Solver solver = Solver::GaussNewton;
+    double damping = 0.0;  // GN damping
+
+    // Levenberg-Marquardt parameters
+    double lmLambda = 1e-3;       // Initial/fixed lambda
+    bool lmFixedLambda = true;    // Use fixed lambda (true) or adaptive (false)
+    double lmLambdaUp = 10.0;     // Lambda increase factor
+    double lmLambdaDown = 0.1;    // Lambda decrease factor
+    double lmLambdaMin = 1e-10;   // Minimum lambda
+    double lmLambdaMax = 1e10;    // Maximum lambda
 
     // Incidence weighting
     bool enableIncidenceWeight = true;
@@ -72,5 +88,19 @@ struct CommonOptions
 // Parse command-line arguments into CommonOptions
 // Returns true on success, false if help was requested or error occurred
 bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& programDesc = "ICP");
+
+// Forward declaration
+struct InnerParams;
+struct OuterParams;
+
+/**
+ * Convert CommonOptions to InnerParams.
+ */
+InnerParams commonOptionsToInnerParams(const CommonOptions& opts);
+
+/**
+ * Convert CommonOptions to OuterParams.
+ */
+OuterParams commonOptionsToOuterParams(const CommonOptions& opts);
 
 } // namespace ICP

@@ -32,6 +32,43 @@ namespace ICP
 {
 
 /**
+ * Convert InnerParams to CeresICPOptions.
+ *
+ * Maps hand-rolled solver parameters to Ceres-specific options.
+ */
+inline CeresICPOptions innerParamsToCeresOptions(const InnerParams& params)
+{
+    CeresICPOptions ceresOpts;
+    ceresOpts.maxIterations = params.maxIterations;
+    ceresOpts.functionTolerance = params.stepTol;
+    ceresOpts.gradientTolerance = params.stepTol;
+    ceresOpts.parameterTolerance = params.stepTol;
+    ceresOpts.verbose = params.verbose;
+    ceresOpts.silent = !params.verbose;
+
+    // Configure based on solver type
+    if (params.solverType == SolverType::LevenbergMarquardt)
+    {
+        ceresOpts.useLM = true;
+        // Convert lambda to trust region radius: mu = 1 / radius, so radius = 1 / lambda
+        double lambda = params.lm.lambda;
+        ceresOpts.initialTrustRegionRadius = (lambda > 0) ? 1.0 / lambda : 1e4;
+
+        // Max radius from lambdaMin: radius_max = 1 / lambda_min
+        ceresOpts.maxTrustRegionRadius = (params.lm.lambdaMin > 0) ? 1.0 / params.lm.lambdaMin : 1e8;
+    }
+    else  // Gauss-Newton
+    {
+        ceresOpts.useLM = false;
+        // Large trust region for GN approximation
+        ceresOpts.initialTrustRegionRadius = 1e16;
+        ceresOpts.maxTrustRegionRadius = 1e32;
+    }
+
+    return ceresOpts;
+}
+
+/**
  * Configure Ceres solver options from ICP options.
  */
 inline void configureCeresOptions(

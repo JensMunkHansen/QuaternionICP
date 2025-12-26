@@ -1,4 +1,5 @@
 #include <ICP/CommonOptions.h>
+#include <ICP/ICPParams.h>
 #include <iostream>
 
 namespace ICP
@@ -51,7 +52,23 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::ValueFlag<int> inner_flag(parser, "int", "Max inner iterations", {'i', "inner-iterations"}, 5);
     args::ValueFlag<double> stepTol(parser, "tol", "Step tolerance (default: 1e-9)", {"step-tol"});
     args::ValueFlag<double> rmsTol(parser, "tol", "RMS tolerance (default: 1e-9)", {"rms-tol"});
-    args::ValueFlag<double> damping(parser, "val", "Damping factor (default: 0.0)", {"damping"});
+
+    // Solver type
+    args::MapFlag<std::string, CommonOptions::Solver> solver_flag(parser, "solver",
+        "Solver type", {"solver"},
+        {{"gn", CommonOptions::Solver::GaussNewton},
+         {"lm", CommonOptions::Solver::LevenbergMarquardt}},
+        CommonOptions::Solver::GaussNewton);
+
+    args::ValueFlag<double> damping(parser, "val", "GN damping factor (default: 0.0)", {"damping"});
+
+    // Levenberg-Marquardt parameters
+    args::ValueFlag<double> lmLambda(parser, "val", "LM lambda (default: 1e-3)", {"lm-lambda"});
+    args::Flag lmAdaptive(parser, "adaptive", "Use adaptive LM (default: fixed lambda)", {"lm-adaptive"});
+    args::ValueFlag<double> lmLambdaUp(parser, "val", "LM lambda increase factor (default: 10.0)", {"lm-lambda-up"});
+    args::ValueFlag<double> lmLambdaDown(parser, "val", "LM lambda decrease factor (default: 0.1)", {"lm-lambda-down"});
+    args::ValueFlag<double> lmLambdaMin(parser, "val", "LM minimum lambda (default: 1e-10)", {"lm-lambda-min"});
+    args::ValueFlag<double> lmLambdaMax(parser, "val", "LM maximum lambda (default: 1e10)", {"lm-lambda-max"});
 
     // Incidence weighting
     args::Flag noIncidenceWeight(parser, "no-weight", "Disable incidence weighting", {"no-incidence-weight"});
@@ -129,7 +146,18 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     if (inner_flag) opts.innerIterations = args::get(inner_flag);
     if (stepTol) opts.stepTol = args::get(stepTol);
     if (rmsTol) opts.rmsTol = args::get(rmsTol);
+
+    // Solver type
+    if (solver_flag) opts.solver = args::get(solver_flag);
     if (damping) opts.damping = args::get(damping);
+
+    // LM parameters
+    if (lmLambda) opts.lmLambda = args::get(lmLambda);
+    opts.lmFixedLambda = !lmAdaptive;  // Default is fixed, --lm-adaptive makes it adaptive
+    if (lmLambdaUp) opts.lmLambdaUp = args::get(lmLambdaUp);
+    if (lmLambdaDown) opts.lmLambdaDown = args::get(lmLambdaDown);
+    if (lmLambdaMin) opts.lmLambdaMin = args::get(lmLambdaMin);
+    if (lmLambdaMax) opts.lmLambdaMax = args::get(lmLambdaMax);
 
     opts.enableIncidenceWeight = !noIncidenceWeight;
     opts.enableGrazingGate = !noGrazingGate;
@@ -146,6 +174,41 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     opts.verbose = verbose;
 
     return true;
+}
+
+InnerParams commonOptionsToInnerParams(const CommonOptions& opts)
+{
+    InnerParams params;
+    params.maxIterations = opts.innerIterations;
+    params.stepTol = opts.stepTol;
+    params.verbose = opts.verbose;
+
+    // Solver type
+    params.solverType = (opts.solver == CommonOptions::Solver::LevenbergMarquardt)
+                            ? SolverType::LevenbergMarquardt
+                            : SolverType::GaussNewton;
+
+    // GN damping
+    params.damping = opts.damping;
+
+    // LM parameters
+    params.lm.lambda = opts.lmLambda;
+    params.lm.fixedLambda = opts.lmFixedLambda;
+    params.lm.lambdaUp = opts.lmLambdaUp;
+    params.lm.lambdaDown = opts.lmLambdaDown;
+    params.lm.lambdaMin = opts.lmLambdaMin;
+    params.lm.lambdaMax = opts.lmLambdaMax;
+
+    return params;
+}
+
+OuterParams commonOptionsToOuterParams(const CommonOptions& opts)
+{
+    OuterParams params;
+    params.maxIterations = opts.outerIterations;
+    params.convergenceTol = opts.rmsTol;
+    params.verbose = opts.verbose;
+    return params;
 }
 
 } // namespace ICP

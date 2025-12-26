@@ -62,12 +62,21 @@ struct GeometryWeighting
 };
 
 /**
+ * Solver backend selection.
+ */
+enum class SolverBackend
+{
+    HandRolled,  // Hand-rolled implementation (GN or LM)
+    Ceres        // Ceres-based implementation
+};
+
+/**
  * Inner solver type.
  */
 enum class SolverType
 {
-    GaussNewton,         // Gauss-Newton solver (damping = 0)
-    LevenbergMarquardt   // Levenberg-Marquardt solver (adaptive damping)
+    GaussNewton,         // Gauss-Newton solver (uses params.damping)
+    LevenbergMarquardt   // Levenberg-Marquardt solver (uses params.lm.lambda, can be fixed or adaptive)
 };
 
 /**
@@ -86,20 +95,21 @@ struct ICPLineSearchParams
  */
 struct InnerParams
 {
+    SolverType solverType = SolverType::GaussNewton;  ///< Solver algorithm to use
     int maxIterations = 12;
     double stepTol = 1e-9;
-    double damping = 0.0;  // LM damping (0 = Gauss-Newton)
-    bool verbose = false;  // Print per-iteration RMS
+    double damping = 0.0;  ///< Damping for Gauss-Newton (ignored if using LM)
+    bool verbose = false;  ///< Print per-iteration RMS
     ICPLineSearchParams lineSearch;
 
     struct LevenbergMarquardt
     {
-        double lambda = 1e-3;       ///< Initial damping parameter
-        bool fixedLambda = true;    ///< If true, don't adapt lambda
-        double lambdaUp = 10.0;     ///< Factor to increase lambda on reject
-        double lambdaDown = 0.1;    ///< Factor to decrease lambda on accept
-        double lambdaMin = 1e-10;   ///< Minimum lambda
-        double lambdaMax = 1e10;    ///< Maximum lambda
+        double lambda = 1e-3;       ///< Initial/fixed damping parameter
+        bool fixedLambda = true;    ///< If true, use fixed lambda; if false, adapt lambda
+        double lambdaUp = 10.0;     ///< Factor to increase lambda on reject (adaptive only)
+        double lambdaDown = 0.1;    ///< Factor to decrease lambda on accept (adaptive only)
+        double lambdaMin = 1e-10;   ///< Minimum lambda (adaptive only)
+        double lambdaMax = 1e10;    ///< Maximum lambda (adaptive only)
     } lm;
 };
 

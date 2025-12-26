@@ -3,15 +3,11 @@
 Ray-projection ICP demo with:
   - 7D ambient pose blocks: [qx,qy,qz,qw, tx,ty,tz]  (xyzw, scalar last)
   - Sophus/Ceres-style Manifold: Plus(T,delta) = T * Exp(delta^)  (right-multiplication)
-  - DIRECT analytic AMBIENT Jacobians (1x7) for Ceres Evaluate()
   - FULLY CONSISTENT quotient-rule Jacobians: dr = (b*da - a*db)/b^2
-  - Bidirectional ICP (one-pose and two-pose)
-  - Incidence weighting/gating based on c = n^T d (updated each inner iter, NOT differentiated)
-  - Outer loop recomputes correspondences, inner loop keeps them fixed.
+  - Bidirectional ICP: one-pose and two-pose
+  - Incidence weighting/gating based on c = n^T d
 
-No local (1x6) residual Jacobians are used anywhere. We solve in 6D locally exactly like Ceres:
-  A_local = A_ambient @ PlusJacobian(x).
-We still solve in 6D locally exactly like Ceres does:
+We solve in 6D locally exactly like Ceres does:
   A_local = A_ambient @ PlusJacobian(x)
 """
 
@@ -19,18 +15,13 @@ import numpy as np
 import trimesh
 
 from se3_utils import (
-    skew,
     quat_normalize as quat_normalize_xyzw,
-    quat_mul as quat_mul_xyzw,
     quat_to_R as quat_to_R_xyzw,
     quat_exp_so3 as quat_exp_so3_xyzw,
-    V_matrix_so3,
     se3_plus as se3_plus_7d,
     plus_jacobian_7x6,
-    dR_dq_mats as dR_dq_mats_xyzw,
-    dR_times_v_dq as dR_times_v_dq_xyzw,
-    dRT_times_v_dq as dRT_times_v_dq_xyzw,
 )
+from jacobians_ambient import AmbientConsistent
 
 damping = 0  # 1e-6
 
@@ -134,145 +125,6 @@ def build_corr_reverse(meshS, R, t, P_T, dT0, ray_offset=0.6):
 
 
 # -----------------------------
-# DIRECT ambient residual Jacobians (ONE pose)
-# Return: r, J7 (1x7), c=b=n^T d
-# -----------------------------
-
-def residual_and_jac_fwd_ambient_direct(x, pS, qT, nT, dS0):
-    q = quat_normalize_xyzw(x[:4])
-    t = x[4:]
-    R = quat_to_R_xyzw(q)
-
-    xT = R @ pS + t
-    d  = R @ dS0
-
-    a = float(nT @ (xT - qT))
-    b = float(nT @ d)
-
-    dr_dt = nT / b
-
-    da_dq = nT @ dR_times_v_dq_xyzw(q, pS)
-    db_dq = nT @ dR_times_v_dq_xyzw(q, dS0)
-    dr_dq = (da_dq * b - a * db_dq) / (b*b)
-
-    J7 = np.hstack([dr_dq, dr_dt])
-    return a / b, J7, b
-
-
-def residual_and_jac_rev_ambient_direct(x, pT, qS, nS, dT0):
-    q = quat_normalize_xyzw(x[:4])
-    t = x[4:]
-    R = quat_to_R_xyzw(q)
-
-    u  = (pT - t)
-    yS = R.T @ u
-    d  = R.T @ dT0
-
-    a = float(nS @ (yS - qS))
-    b = float(nS @ d)
-
-    dr_dt = (nS @ (-R.T)) / b
-
-    da_dq = nS @ dRT_times_v_dq_xyzw(q, u)
-    db_dq = nS @ dRT_times_v_dq_xyzw(q, dT0)
-    dr_dq = (da_dq * b - a * db_dq) / (b*b)
-
-    J7 = np.hstack([dr_dq, dr_dt])
-    return a / b, J7, b
-
-
-# -----------------------------
-# DIRECT ambient residual Jacobians (TWO poses)
-# Return: r, J7A, J7B, c=b=n^T d
-# -----------------------------
-
-def residual_and_jac_fwd_two_pose_ambient_direct(xA, xB, pA, qB_pt, nB, dA0):
-    qA = quat_normalize_xyzw(xA[:4]); tA = xA[4:]; RA = quat_to_R_xyzw(qA)
-    qB = quat_normalize_xyzw(xB[:4]); tB = xB[4:]; RB = quat_to_R_xyzw(qB)
-
-    U = RA @ pA + (tA - tB)     # in world
-    xBv = RB.T @ U              # in B
-    u_d = RA @ dA0              # in world
-    d   = RB.T @ u_d            # in B
-
-    a = float(nB @ (xBv - qB_pt))
-    b = float(nB @ d)
-
-    # A block
-    da_dtA = nB @ (RB.T)
-    db_dtA = np.zeros(3)
-
-    dx_dqA = RB.T @ dR_times_v_dq_xyzw(qA, pA)
-    da_dqA = nB @ dx_dqA
-
-    dd_dqA = RB.T @ dR_times_v_dq_xyzw(qA, dA0)
-    db_dqA = nB @ dd_dqA
-
-    dr_dqA = (da_dqA * b - a * db_dqA) / (b*b)
-    dr_dtA = (da_dtA * b - a * db_dtA) / (b*b)
-    J7A = np.hstack([dr_dqA, dr_dtA])
-
-    # B block
-    da_dtB = nB @ (-RB.T)
-    db_dtB = np.zeros(3)
-
-    dx_dqB = dRT_times_v_dq_xyzw(qB, U)
-    da_dqB = nB @ dx_dqB
-
-    dd_dqB = dRT_times_v_dq_xyzw(qB, u_d)
-    db_dqB = nB @ dd_dqB
-
-    dr_dqB = (da_dqB * b - a * db_dqB) / (b*b)
-    dr_dtB = (da_dtB * b - a * db_dtB) / (b*b)
-    J7B = np.hstack([dr_dqB, dr_dtB])
-
-    return a / b, J7A, J7B, b
-
-
-def residual_and_jac_rev_two_pose_ambient_direct(xA, xB, pB, qA_pt, nA, dB0):
-    qA = quat_normalize_xyzw(xA[:4]); tA = xA[4:]; RA = quat_to_R_xyzw(qA)
-    qB = quat_normalize_xyzw(xB[:4]); tB = xB[4:]; RB = quat_to_R_xyzw(qB)
-
-    V = RB @ pB + (tB - tA)     # in world
-    xAv = RA.T @ V              # in A
-    v_d = RB @ dB0              # in world
-    d   = RA.T @ v_d            # in A
-
-    a = float(nA @ (xAv - qA_pt))
-    b = float(nA @ d)
-
-    # B block
-    da_dtB = nA @ (RA.T)
-    db_dtB = np.zeros(3)
-
-    dx_dqB = RA.T @ dR_times_v_dq_xyzw(qB, pB)
-    da_dqB = nA @ dx_dqB
-
-    dd_dqB = RA.T @ dR_times_v_dq_xyzw(qB, dB0)
-    db_dqB = nA @ dd_dqB
-
-    dr_dqB = (da_dqB * b - a * db_dqB) / (b*b)
-    dr_dtB = (da_dtB * b - a * db_dtB) / (b*b)
-    J7B = np.hstack([dr_dqB, dr_dtB])
-
-    # A block
-    da_dtA = nA @ (-RA.T)
-    db_dtA = np.zeros(3)
-
-    dx_dqA = dRT_times_v_dq_xyzw(qA, V)
-    da_dqA = nA @ dx_dqA
-
-    dd_dqA = dRT_times_v_dq_xyzw(qA, v_d)
-    db_dqA = nA @ dd_dqA
-
-    dr_dqA = (da_dqA * b - a * db_dqA) / (b*b)
-    dr_dtA = (da_dtA * b - a * db_dtA) / (b*b)
-    J7A = np.hstack([dr_dqA, dr_dtA])
-
-    return a / b, J7A, J7B, b
-
-
-# -----------------------------
 # ICP solvers (Ceres-style: assemble ambient, project with PlusJacobian, solve local)
 # -----------------------------
 
@@ -294,7 +146,7 @@ def solve_inner_one_pose(x, P_S, P_T, corr_fwd, corr_rev, dS0, dT0,
         for i in range(len(P_S)):
             if not ok_fwd[i]:
                 continue
-            r, J7, c = residual_and_jac_fwd_ambient_direct(x, P_S[i], qT[i], nT[i], dS0)
+            r, J7, c = AmbientConsistent.residual_and_jac_fwd(x, P_S[i], qT[i], nT[i], dS0)
             w = incidence_weight(c)
             if w == 0.0:
                 continue
@@ -306,7 +158,7 @@ def solve_inner_one_pose(x, P_S, P_T, corr_fwd, corr_rev, dS0, dT0,
         for j in range(len(P_T)):
             if not ok_rev[j]:
                 continue
-            r, J7, c = residual_and_jac_rev_ambient_direct(x, P_T[j], qS[j], nS[j], dT0)
+            r, J7, c = AmbientConsistent.residual_and_jac_rev(x, P_T[j], qS[j], nS[j], dT0)
             w = incidence_weight(c)
             if w == 0.0:
                 continue
@@ -368,7 +220,7 @@ def solve_inner_two_pose(xA, xB, PA, PB, corr_fwd, corr_rev,
         for i in range(len(PA)):
             if not ok_fwd[i]:
                 continue
-            r, J7A, J7B, c = residual_and_jac_fwd_two_pose_ambient_direct(xA, xB, PA[i], qB[i], nB[i], dA0)
+            r, J7A, J7B, c = AmbientConsistent.residual_and_jac_fwd_two_pose(xA, xB, PA[i], qB[i], nB[i], dA0)
             w = incidence_weight(c)
             if w == 0.0:
                 continue
@@ -380,7 +232,7 @@ def solve_inner_two_pose(xA, xB, PA, PB, corr_fwd, corr_rev,
         for j in range(len(PB)):
             if not ok_rev[j]:
                 continue
-            r, J7A, J7B, c = residual_and_jac_rev_two_pose_ambient_direct(xA, xB, PB[j], qA[j], nA[j], dB0)
+            r, J7A, J7B, c = AmbientConsistent.residual_and_jac_rev_two_pose(xA, xB, PB[j], qA[j], nA[j], dB0)
             w = incidence_weight(c)
             if w == 0.0:
                 continue
@@ -437,13 +289,13 @@ def icp_one_pose(meshS, meshT, P_S, P_T, x0, outer=6, inner=12):
         rs = []
         for i in range(len(P_S)):
             if ok_fwd[i]:
-                r, _, c = residual_and_jac_fwd_ambient_direct(x, P_S[i], qT[i], nT[i], dS0)
+                r, _, c = AmbientConsistent.residual_and_jac_fwd(x, P_S[i], qT[i], nT[i], dS0)
                 w = incidence_weight(c)
                 if w != 0.0:
                     rs.append(w * r)
         for j in range(len(P_T)):
             if ok_rev[j]:
-                r, _, c = residual_and_jac_rev_ambient_direct(x, P_T[j], qS[j], nS[j], dT0)
+                r, _, c = AmbientConsistent.residual_and_jac_rev(x, P_T[j], qS[j], nS[j], dT0)
                 w = incidence_weight(c)
                 if w != 0.0:
                     rs.append(w * r)
@@ -451,7 +303,7 @@ def icp_one_pose(meshS, meshT, P_S, P_T, x0, outer=6, inner=12):
         print(f"[one-pose] outer {out:02d}  rms={rms:.6e}  #res={len(rs)}")
 
     print(f"[one-pose]: nOuter: {outer}, nInner: {total_inner}")
-    return x
+    return x, total_inner, rms
 
 
 def icp_two_pose(meshA, meshB, PA, PB, xA0, xB0, outer=6, inner=12):
@@ -478,13 +330,13 @@ def icp_two_pose(meshA, meshB, PA, PB, xA0, xB0, outer=6, inner=12):
         rs = []
         for i in range(len(PA)):
             if ok_fwd[i]:
-                r, _, _, c = residual_and_jac_fwd_two_pose_ambient_direct(xA, xB, PA[i], qBcorr[i], nBcorr[i], dA0)
+                r, _, _, c = AmbientConsistent.residual_and_jac_fwd_two_pose(xA, xB, PA[i], qBcorr[i], nBcorr[i], dA0)
                 w = incidence_weight(c)
                 if w != 0.0:
                     rs.append(w * r)
         for j in range(len(PB)):
             if ok_rev[j]:
-                r, _, _, c = residual_and_jac_rev_two_pose_ambient_direct(xA, xB, PB[j], qAcorr[j], nAcorr[j], dB0)
+                r, _, _, c = AmbientConsistent.residual_and_jac_rev_two_pose(xA, xB, PB[j], qAcorr[j], nAcorr[j], dB0)
                 w = incidence_weight(c)
                 if w != 0.0:
                     rs.append(w * r)
@@ -492,7 +344,7 @@ def icp_two_pose(meshA, meshB, PA, PB, xA0, xB0, outer=6, inner=12):
         print(f"[two-pose] outer {out:02d}  rms={rms:.6e}  #res={len(rs)}")
 
     print(f"[two-poses]: nOuter: {outer}, nInner: {total_inner}")
-    return xA, xB
+    return xA, xB, total_inner, rms
 
 
 def main():
@@ -517,7 +369,7 @@ def main():
           f"mode={INCIDENCE_MODE}")
 
     print("\n--- One-pose ICP ---")
-    x_est = icp_one_pose(meshS, meshT, P_S, P_T, x0, outer=6, inner=12)
+    x_est, n_inner_1, rms_1 = icp_one_pose(meshS, meshT, P_S, P_T, x0, outer=6, inner=12)
     print("Estimated x =", x_est)
 
     print("\n--- Two-pose ICP ---")
@@ -525,13 +377,20 @@ def main():
     qB0 = quat_exp_so3_xyzw(np.array([0.10, -0.07, 0.05])); tB0 = np.array([0.03, -0.02, 0.12])
     xA0 = np.hstack([qA0, tA0])
     xB0 = np.hstack([qB0, tB0])
-    xA, xB = icp_two_pose(meshS, meshT, P_S, P_T, xA0, xB0, outer=6, inner=12)
+    xA, xB, n_inner_2, rms_2 = icp_two_pose(meshS, meshT, P_S, P_T, xA0, xB0, outer=6, inner=12)
 
     # print relative estimate (B<-A)
     RA = quat_to_R_xyzw(xA[:4]); tA = xA[4:]
     RB = quat_to_R_xyzw(xB[:4]); tB = xB[4:]
     tBA = RB.T @ (tA - tB)
     print("Estimated relative t_BA =", tBA)
+
+    # Regression assertions
+    assert n_inner_1 == 11, f"one-pose inner iterations: expected 11, got {n_inner_1}"
+    assert n_inner_2 == 12, f"two-pose inner iterations: expected 12, got {n_inner_2}"
+    assert abs(rms_1 - 7.113145e-17) < 1e-15, f"one-pose final rms: expected ~7.11e-17, got {rms_1}"
+    assert abs(rms_2 - 7.407067e-17) < 1e-15, f"two-pose final rms: expected ~7.41e-17, got {rms_2}"
+    print("\n*** All assertions passed ***")
 
 
 if __name__ == "__main__":

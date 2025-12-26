@@ -23,6 +23,7 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "CMAKE_C_COMPILER": "gcc",
                 "CMAKE_CXX_COMPILER": "g++",
+                "BUILD_TESTING": "ON",
                 "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/gcc/install"
             }
         },

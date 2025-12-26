@@ -18,7 +18,10 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <random>
+#include <sstream>
+#include <type_traits>
 #include <vector>
 
 using namespace ICP;
@@ -26,6 +29,63 @@ using Catch::Matchers::WithinAbs;
 
 namespace
 {
+
+// ============================================================================
+// FD validation traits - test infrastructure only
+// ============================================================================
+
+template<typename Policy>
+struct FDValidationTraits;
+
+// ============================================================================
+// Finite-Difference Validation Parameters (see Doc/*.md)
+// ============================================================================
+//
+// Empirical values from epsilon sweep:
+//
+// TRANSLATION (linear in t, see Doc/ExpectedEpsilon.md):
+//   - FD is exact for any eps (no truncation error)
+//   - best_eps: 1e-2 (arbitrary, all work)
+//   - tol: 1e-14 (machine precision)
+//
+// ROTATION (nonlinear in R, see Doc/ExpectedEpsilon.md):
+//   - FD requires proper eps sweep
+//   - best_eps: 3e-6 (plateau range)
+//   - Consistent tol: 1e-10 (matches FD)
+//   - Simplified: DO NOT validate against FD (see below)
+//
+// SIMPLIFIED ROTATION (see Doc/SimplifiedError.md):
+//   The Simplified jacobian ignores the db/dq term: dr/dq = da/dq / b
+//   The missing term (-a * db/dq / b²) can dominate for random geometry:
+//   - Expected: ~1% error for typical ICP geometry (small residual a)
+//   - Observed: up to 60% for random geometry (large |a * db/dq|)
+//   This is mathematically correct - the approximation breaks down when
+//   |a * db/dq| >> |da/dq * b|.
+//
+//   VALIDATION STRATEGY:
+//   - Do NOT validate Simplified rotation against FD (tolerance is meaningless)
+//   - Instead, "[diagnostic]" test validates: (Consistent - Simplified) == missing term
+//   - This confirms both implementations are correct
+// ============================================================================
+
+template<>
+struct FDValidationTraits<RayJacobianSimplified>
+{
+    static constexpr double translation_eps = 1e-2;   // Any eps works (linear)
+    static constexpr double rotation_eps = 3e-6;      // Plateau at 3e-6
+    static constexpr double translation_tol = 1e-14;  // Machine precision
+    // Rotation: not validated against FD - see "[diagnostic]" test
+    static constexpr double rotation_tol = std::numeric_limits<double>::max();
+};
+
+template<>
+struct FDValidationTraits<RayJacobianConsistent>
+{
+    static constexpr double translation_eps = 1e-2;   // Any eps works (linear)
+    static constexpr double rotation_eps = 3e-6;      // Plateau at 3e-6
+    static constexpr double translation_tol = 1e-14;  // Machine precision
+    static constexpr double rotation_tol = 1e-10;     // Matches FD (sweep: ~3e-11)
+};
 
 /// Evaluate residual only (no jacobian)
 template <typename CostFunctor>
@@ -139,86 +199,91 @@ Eigen::Matrix<double, 1, 6> getAnalyticalJacobian6(const CostFunctor& cost, cons
     return jacobian7Dto6D(J7, x);
 }
 
-} // namespace
-
-TEST_CASE("RayProjectionFwd simplified jacobian", "[jacobians][python]")
+/// Result of jacobian validation
+struct ValidationResult
 {
-    // Test inputs (same as Python test_ambient_jacobian.py)
-    Vector3 pS(0.1, 0.2, 0.3);
-    Vector3 qT(0.12, 0.18, 0.35);
-    Vector3 nT(0.0, 0.0, 1.0);
-    Vector3 dS0(0.0, 0.0, -1.0);
+    bool passed = true;
+    double worst_err = 0.0;
+    double worst_tol = 0.0;
+    std::string worst_desc;
 
-    // Pose: small rotation + translation
-    // q = quat_exp_so3([0.01, 0.02, 0.03]) in xyzw format
-    double qx = 0.004999708338437;
-    double qy = 0.009999416676875;
-    double qz = 0.014999125015312;
-    double qw = 0.999825005104107;
-    double tx = 0.01;
-    double ty = -0.01;
-    double tz = 0.02;
+    void check(double err, double tol, const std::string& desc)
+    {
+        if (err >= tol && err > worst_err)
+        {
+            passed = false;
+            worst_err = err;
+            worst_tol = tol;
+            worst_desc = desc;
+        }
+    }
+};
 
-    double x[7] = {qx, qy, qz, qw, tx, ty, tz};
-
-    WARN("=== Test Inputs ===");
-    WARN("pS = [" << pS.x() << ", " << pS.y() << ", " << pS.z() << "]");
-    WARN("qT = [" << qT.x() << ", " << qT.y() << ", " << qT.z() << "]");
-    WARN("nT = [" << nT.x() << ", " << nT.y() << ", " << nT.z() << "]");
-    WARN("dS0 = [" << dS0.x() << ", " << dS0.y() << ", " << dS0.z() << "]");
-    WARN("x (pose) = [" << x[0] << ", " << x[1] << ", " << x[2] << ", "
-                        << x[3] << ", " << x[4] << ", " << x[5] << ", " << x[6] << "]");
-
-    GeometryWeighting weighting;
-    WARN("weighting: enable_weight=" << weighting.enable_weight
-         << ", enable_gate=" << weighting.enable_gate
-         << ", tau=" << weighting.tau);
-
-    RayProjectionFwd cost(pS, qT, nT, dS0, weighting);
-
-    double const* parameters[1] = {x};
-    double residual;
-    double jacobian[7];
-    double* jacobians[1] = {jacobian};
-
-    bool ok = cost(parameters, &residual, jacobians);
-
-    WARN("=== Outputs ===");
-    WARN("ok = " << (ok ? "True" : "False"));
-    WARN("residual = " << std::setprecision(15) << std::scientific << residual);
-    WARN("J7 = [" << jacobian[0] << ", " << jacobian[1] << ", " << jacobian[2] << ", "
-                  << jacobian[3] << ", " << jacobian[4] << ", " << jacobian[5] << ", " << jacobian[6] << "]");
-    WARN("  J7[0:4] (dq) = [" << jacobian[0] << ", " << jacobian[1] << ", "
-                              << jacobian[2] << ", " << jacobian[3] << "]");
-    WARN("  J7[4:7] (dt) = [" << jacobian[4] << ", " << jacobian[5] << ", " << jacobian[6] << "]");
-
-    CHECK(ok);
-}
-
-TEST_CASE("RayProjectionFwdConsistent directional derivative validation", "[jacobians][fd]")
+/// Validate jacobian using FDValidationTraits for the cost's policy
+template <typename CostFunctor>
+void validateJacobianWithPolicy(const CostFunctor& cost, const double* x, std::mt19937& rng)
 {
-    std::mt19937 rng(42);
-
-    Vector3 pS = randomVector3(rng, 0.5);
-    Vector3 qT = pS + randomVector3(rng, 0.1);
-    Vector3 nT = randomUnitVector<3>(rng);
-    Vector3 dS0 = -nT + randomVector3(rng, 0.1);
-    dS0.normalize();
-
-    Quaternion q = randomQuaternion(rng);
-    Vector3 t = randomVector3(rng, 0.05);
-    double x[7] = {q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z()};
-
-    GeometryWeighting weighting;
-    weighting.enable_weight = false;
-    weighting.enable_gate = false;
-    RayProjectionFwdConsistent cost(pS, qT, nT, dS0, weighting);
+    using Policy = typename CostFunctor::policy_tag;
+    using Traits = FDValidationTraits<Policy>;
 
     auto J_ana6 = getAnalyticalJacobian6(cost, x);
-    auto epsilons = logarithmicEpsilons();
+    ValidationResult result;
 
-    constexpr int numDirections = 5;
+    // Test translation directions
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(k) = 1.0;
+        double df_ana = J_ana6.dot(delta6);
+        double df_num = numericalDirectionalDerivative(cost, x, delta6, Traits::translation_eps);
+        double err = std::abs(df_num - df_ana);
+
+        std::ostringstream oss;
+        oss << "Translation[" << k << "]: ana=" << df_ana << " num=" << df_num << " err=" << err;
+        result.check(err, Traits::translation_tol, oss.str());
+    }
+
+    // Test rotation directions
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(3 + k) = 1.0;
+        double df_ana = J_ana6.dot(delta6);
+        double df_num = numericalDirectionalDerivative(cost, x, delta6, Traits::rotation_eps);
+        double err = std::abs(df_num - df_ana);
+
+        std::ostringstream oss;
+        oss << "Rotation[" << k << "]: ana=" << df_ana << " num=" << df_num << " err=" << err;
+        result.check(err, Traits::rotation_tol, oss.str());
+    }
+
+    // Test random mixed directions
+    for (int d = 0; d < 3; ++d)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = randomUnitVector<6>(rng);
+        double df_ana = J_ana6.dot(delta6);
+        double df_num = numericalDirectionalDerivative(cost, x, delta6, Traits::rotation_eps);
+        double err = std::abs(df_num - df_ana);
+
+        std::ostringstream oss;
+        oss << "Mixed[" << d << "]: ana=" << df_ana << " num=" << df_num << " err=" << err;
+        result.check(err, Traits::rotation_tol, oss.str());
+    }
+
+    INFO("Worst failure: " << result.worst_desc << " (tol=" << result.worst_tol << ")");
+    CHECK(result.passed);
+}
+
+/// Validate jacobian with epsilon sweep over multiple scales and directions
+template <typename CostFunctor>
+void validateWithEpsilonSweep(const CostFunctor& cost, const double* x, std::mt19937& rng,
+                               int numDirections = 5, double tolerance = 1e-6)
+{
+    auto J_ana6 = getAnalyticalJacobian6(cost, x);
+    auto epsilons = logarithmicEpsilons();
     double scales[] = {1.0, 0.1, 10.0};
+
+    ValidationResult validation;
 
     for (double scale : scales)
     {
@@ -230,26 +295,22 @@ TEST_CASE("RayProjectionFwdConsistent directional derivative validation", "[jaco
             auto result = sweepEpsilon(cost, x, delta6, df_ana, epsilons);
             double rel_err = result.min_err / std::max(1.0, std::abs(df_ana));
 
-            INFO("scale=" << scale << " dir=" << d << " df_ana=" << df_ana
-                         << " df_num=" << result.best_df_num << " rel_err=" << rel_err);
-            CHECK(rel_err < 1e-6);
+            std::ostringstream oss;
+            oss << "scale=" << scale << " dir=" << d << " df_ana=" << df_ana
+                << " df_num=" << result.best_df_num << " rel_err=" << rel_err;
+            validation.check(rel_err, tolerance, oss.str());
         }
     }
+
+    INFO("Worst failure: " << validation.worst_desc << " (tol=" << validation.worst_tol << ")");
+    CHECK(validation.passed);
 }
 
-TEST_CASE("RayProjectionFwdConsistent jacobian", "[jacobians][python]")
+/// Print jacobian output for Python comparison
+template <typename CostFunctor>
+void printJacobianForPython(const CostFunctor& cost, const double* x)
 {
-    // Same test inputs as simplified test
-    Vector3 pS(0.1, 0.2, 0.3);
-    Vector3 qT(0.12, 0.18, 0.35);
-    Vector3 nT(0.0, 0.0, 1.0);
-    Vector3 dS0(0.0, 0.0, -1.0);
-
-    double x[7] = {0.004999708338437, 0.009999416676875, 0.014999125015312,
-                   0.999825005104107, 0.01, -0.01, 0.02};
-
-    GeometryWeighting weighting;
-    RayProjectionFwdConsistent cost(pS, qT, nT, dS0, weighting);
+    using Policy = typename CostFunctor::policy_tag;
 
     double const* parameters[1] = {x};
     double residual;
@@ -258,9 +319,9 @@ TEST_CASE("RayProjectionFwdConsistent jacobian", "[jacobians][python]")
 
     bool ok = cost(parameters, &residual, jacobians);
 
-    WARN("=== RayProjectionFwdConsistent (quotient-rule) ===");
+    WARN("=== " << Policy::name << " jacobian ===");
     WARN("residual = " << std::setprecision(15) << std::scientific << residual);
-    WARN("J7 = [" << jacobian[0] << ", " << jacobian[1] << ", " << jacobian[2] << ", "
+    WARN("J7 = [" << std::setprecision(9) << jacobian[0] << ", " << jacobian[1] << ", " << jacobian[2] << ", "
                   << jacobian[3] << ", " << jacobian[4] << ", " << jacobian[5] << ", " << jacobian[6] << "]");
     WARN("  J7[0:4] (dq) = [" << jacobian[0] << ", " << jacobian[1] << ", "
                               << jacobian[2] << ", " << jacobian[3] << "]");
@@ -269,106 +330,107 @@ TEST_CASE("RayProjectionFwdConsistent jacobian", "[jacobians][python]")
     CHECK(ok);
 }
 
-TEST_CASE("RayProjectionFwd simplified directional derivative validation", "[jacobians][fd]")
+/// Common test inputs for Python comparison tests
+struct PythonTestInputs
 {
-    // Fixed seed for reproducibility
-    std::mt19937 rng(123);
+    Vector3 pS{0.1, 0.2, 0.3};
+    Vector3 qT{0.12, 0.18, 0.35};
+    Vector3 nT{0.0, 0.0, 1.0};
+    Vector3 dS0{0.0, 0.0, -1.0};
 
-    // Random geometry
-    Vector3 pS = randomVector3(rng, 0.5);
-    Vector3 qT = pS + randomVector3(rng, 0.1);
-    Vector3 nT = randomUnitVector<3>(rng);
-    Vector3 dS0 = -nT + randomVector3(rng, 0.1);
-    dS0.normalize();
+    // Pose: q = quat_exp_so3([0.01, 0.02, 0.03]) in xyzw format
+    double x[7] = {0.004999708338437, 0.009999416676875, 0.014999125015312,
+                   0.999825005104107, 0.01, -0.01, 0.02};
+};
 
-    // Random pose
-    Quaternion q = randomQuaternion(rng);
-    Vector3 t = randomVector3(rng, 0.05);
-    double x[7] = {q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z()};
-
+/// Random test geometry and pose for FD validation
+struct RandomTestSetup
+{
+    Vector3 pS, qT, nT, dS0;
+    double x[7];
     GeometryWeighting weighting;
-    weighting.enable_weight = false;
-    weighting.enable_gate = false;
-    RayProjectionFwd cost(pS, qT, nT, dS0, weighting);
 
-    // Analytical 7D jacobian -> 6D via plus jacobian
-    double const* parameters[1] = {x};
-    double residual;
-    double J_ana7[7];
-    double* jacobians[1] = {J_ana7};
-    cost(parameters, &residual, jacobians);
+    explicit RandomTestSetup(std::mt19937& rng, double geomScale = 0.5, double poseScale = 0.1)
+    {
+        pS = randomVector3(rng, geomScale);
+        qT = pS + randomVector3(rng, 0.1);
+        nT = randomUnitVector<3>(rng);
+        dS0 = -nT + randomVector3(rng, 0.2);
+        dS0.normalize();
 
-    Pose7 pose;
-    pose << x[0], x[1], x[2], x[3], x[4], x[5], x[6];
-    auto P = plusJacobian7x6(pose);
-    Eigen::Map<Eigen::RowVectorXd> J7(J_ana7, 7);
-    Eigen::Matrix<double, 1, 6> J_ana6 = J7 * P;
+        Quaternion q = randomQuaternion(rng);
+        Vector3 t = randomVector3(rng, poseScale);
+        x[0] = q.x(); x[1] = q.y(); x[2] = q.z(); x[3] = q.w();
+        x[4] = t.x(); x[5] = t.y(); x[6] = t.z();
 
-    // Test translation-only directions (simplified is exact for these)
-    INFO("=== Translation-only directions (simplified is exact) ===");
+        weighting.enable_weight = false;
+        weighting.enable_gate = false;
+    }
+};
+
+} // namespace
+
+TEST_CASE("Ray jacobians for Python comparison", "[jacobians][python]")
+{
+    PythonTestInputs inputs;
+    GeometryWeighting weighting;
+
+    WARN("=== Test Inputs ===");
+    WARN("pS = [" << inputs.pS.x() << ", " << inputs.pS.y() << ", " << inputs.pS.z() << "]");
+    WARN("qT = [" << inputs.qT.x() << ", " << inputs.qT.y() << ", " << inputs.qT.z() << "]");
+    WARN("nT = [" << inputs.nT.x() << ", " << inputs.nT.y() << ", " << inputs.nT.z() << "]");
+    WARN("dS0 = [" << inputs.dS0.x() << ", " << inputs.dS0.y() << ", " << inputs.dS0.z() << "]");
+    WARN("x (pose) = [" << inputs.x[0] << ", " << inputs.x[1] << ", " << inputs.x[2] << ", "
+                        << inputs.x[3] << ", " << inputs.x[4] << ", " << inputs.x[5] << ", " << inputs.x[6] << "]");
+    WARN("weighting: enable_weight=" << weighting.enable_weight
+         << ", enable_gate=" << weighting.enable_gate
+         << ", tau=" << weighting.tau);
+
+    SECTION("Simplified")
+    {
+        ForwardRayCostSimplified cost(inputs.pS, inputs.qT, inputs.nT, inputs.dS0, weighting);
+        printJacobianForPython(cost, inputs.x);
+    }
+
+    SECTION("Consistent")
+    {
+        ForwardRayCostConsistent cost(inputs.pS, inputs.qT, inputs.nT, inputs.dS0, weighting);
+        printJacobianForPython(cost, inputs.x);
+    }
+}
+
+TEST_CASE("Simplified jacobian: translation exact, rotation approximate", "[jacobians][fd]")
+{
+    std::mt19937 rng(123);
+    RandomTestSetup setup(rng, 0.5, 0.05);
+
+    ForwardRayCostSimplified cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
+
+    auto J_ana6 = getAnalyticalJacobian6(cost, setup.x);
+    auto epsilons = logarithmicEpsilons();
+
+    ValidationResult validation;
+
+    // Translation directions: simplified is exact
     for (int i = 0; i < 3; ++i)
     {
         Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
         delta6[i] = 1.0;
-
         double df_ana = J_ana6.dot(delta6);
 
-        double best_err = std::numeric_limits<double>::max();
-        double best_eps = 0;
-        double best_df_num = 0;
+        auto result = sweepEpsilon(cost, setup.x, delta6, df_ana, epsilons);
+        double rel_err = result.min_err / std::max(1.0, std::abs(df_ana));
 
-        for (int e = -4; e >= -10; --e)
-        {
-            double eps = std::pow(10.0, e);
-            double df_num = numericalDirectionalDerivative(cost, x, delta6, eps);
-            double err = std::abs(df_num - df_ana);
-            if (err < best_err)
-            {
-                best_err = err;
-                best_eps = eps;
-                best_df_num = df_num;
-            }
-        }
-
-        double rel_err = best_err / std::max(1.0, std::abs(df_ana));
-        INFO("t[" << i << "]: df_ana=" << df_ana << " df_num=" << best_df_num
-                  << " best_eps=" << best_eps << " rel_err=" << rel_err);
-        CHECK(rel_err < 1e-6);
+        std::ostringstream oss;
+        oss << "t[" << i << "]: df_ana=" << df_ana << " df_num=" << result.best_df_num
+            << " best_eps=" << result.best_eps << " rel_err=" << rel_err;
+        validation.check(rel_err, 1e-6, oss.str());
     }
 
-    // Test rotation directions (simplified ignores db_dq, so will have some error)
-    INFO("=== Rotation directions (simplified approximation) ===");
-    for (int i = 0; i < 3; ++i)
-    {
-        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
-        delta6[3 + i] = 1.0;
+    // Rotation directions: simplified ignores db_dq, so has error (don't validate)
 
-        double df_ana = J_ana6.dot(delta6);
-
-        double best_err = std::numeric_limits<double>::max();
-        double best_eps = 0;
-        double best_df_num = 0;
-
-        for (int e = -4; e >= -10; --e)
-        {
-            double eps = std::pow(10.0, e);
-            double df_num = numericalDirectionalDerivative(cost, x, delta6, eps);
-            double err = std::abs(df_num - df_ana);
-            if (err < best_err)
-            {
-                best_err = err;
-                best_eps = eps;
-                best_df_num = df_num;
-            }
-        }
-
-        double rel_err = best_err / std::max(1.0, std::abs(df_ana));
-        // Simplified ignores db_dq term - report error but don't fail
-        INFO("w[" << i << "]: df_ana=" << df_ana << " df_num=" << best_df_num
-                  << " best_eps=" << best_eps << " rel_err=" << rel_err);
-    }
-
-    CHECK(true);  // Always pass - rotation error is expected for simplified
+    INFO("Worst failure: " << validation.worst_desc << " (tol=" << validation.worst_tol << ")");
+    CHECK(validation.passed);
 }
 
 // ============================================================================
@@ -386,6 +448,8 @@ TEST_CASE("RayProjectionFwd simplified directional derivative validation", "[jac
 TEST_CASE("Sanity test: f(R) = R*p rotation jacobian", "[jacobians][sanity]")
 {
     std::mt19937 rng(999);
+
+    ValidationResult validation;
 
     constexpr int numTrials = 10;
     for (int trial = 0; trial < numTrials; ++trial)
@@ -446,16 +510,19 @@ TEST_CASE("Sanity test: f(R) = R*p rotation jacobian", "[jacobians][sanity]")
 
             // Check analytical matches known formula
             double err_ana_known = (df_ana - df_known).norm();
-            INFO("trial=" << trial << " dir=" << d);
-            INFO("df_ana = [" << df_ana.transpose() << "]");
-            INFO("df_known = [" << df_known.transpose() << "]");
-            INFO("df_num = [" << df_num_best.transpose() << "] (eps=" << best_eps << ")");
-            INFO("err_ana_known=" << err_ana_known << " err_num_known=" << best_err);
 
-            CHECK(err_ana_known < 1e-10);
-            CHECK(best_err < 1e-8);
+            std::ostringstream oss;
+            oss << "trial=" << trial << " dir=" << d << " err_ana_known=" << err_ana_known;
+            validation.check(err_ana_known, 1e-10, oss.str());
+
+            oss.str("");
+            oss << "trial=" << trial << " dir=" << d << " err_num_known=" << best_err;
+            validation.check(best_err, 1e-8, oss.str());
         }
     }
+
+    INFO("Worst failure: " << validation.worst_desc << " (tol=" << validation.worst_tol << ")");
+    CHECK(validation.passed);
 }
 
 /**
@@ -466,43 +533,40 @@ TEST_CASE("Sanity test: f(R) = R*p rotation jacobian", "[jacobians][sanity]")
  */
 TEST_CASE("Multiple random poses: consistent jacobian", "[jacobians][random]")
 {
-    auto epsilons = logarithmicEpsilons();
     constexpr int numPoses = 20;
-    constexpr int numDirections = 3;
+
+    ValidationResult validation;
 
     for (int seed = 0; seed < numPoses; ++seed)
     {
         std::mt19937 rng(seed * 1000);
+        RandomTestSetup setup(rng);
 
-        Vector3 pS = randomVector3(rng, 0.5);
-        Vector3 qT = pS + randomVector3(rng, 0.1);
-        Vector3 nT = randomUnitVector<3>(rng);
-        Vector3 dS0 = -nT + randomVector3(rng, 0.2);
-        dS0.normalize();
+        ForwardRayCostConsistent cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
 
-        Quaternion q = randomQuaternion(rng);
-        Vector3 t = randomVector3(rng, 0.1);
-        double x[7] = {q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z()};
+        auto J_ana6 = getAnalyticalJacobian6(cost, setup.x);
+        auto epsilons = logarithmicEpsilons();
+        double scales[] = {1.0, 0.1, 10.0};
 
-        GeometryWeighting weighting;
-        weighting.enable_weight = false;
-        weighting.enable_gate = false;
-        RayProjectionFwdConsistent cost(pS, qT, nT, dS0, weighting);
-
-        auto J_ana6 = getAnalyticalJacobian6(cost, x);
-
-        for (int d = 0; d < numDirections; ++d)
+        for (double scale : scales)
         {
-            Eigen::Matrix<double, 6, 1> delta6 = randomUnitVector<6>(rng);
-            double df_ana = J_ana6.dot(delta6);
+            for (int d = 0; d < 3; ++d)
+            {
+                Eigen::Matrix<double, 6, 1> delta6 = scale * randomUnitVector<6>(rng);
+                double df_ana = J_ana6.dot(delta6);
 
-            auto result = sweepEpsilon(cost, x, delta6, df_ana, epsilons);
-            double rel_err = result.min_err / std::max(1.0, std::abs(df_ana));
+                auto result = sweepEpsilon(cost, setup.x, delta6, df_ana, epsilons);
+                double rel_err = result.min_err / std::max(1.0, std::abs(df_ana));
 
-            INFO("pose=" << seed << " dir=" << d << " rel_err=" << rel_err);
-            CHECK(rel_err < 1e-6);
+                std::ostringstream oss;
+                oss << "seed=" << seed << " scale=" << scale << " dir=" << d << " rel_err=" << rel_err;
+                validation.check(rel_err, 1e-6, oss.str());
+            }
         }
     }
+
+    INFO("Worst failure: " << validation.worst_desc << " (tol=" << validation.worst_tol << ")");
+    CHECK(validation.passed);
 }
 
 /**
@@ -519,27 +583,16 @@ TEST_CASE("Multiple random poses: consistent jacobian", "[jacobians][random]")
 TEST_CASE("Epsilon sweep: simplified vs consistent", "[jacobians][epsilon]")
 {
     std::mt19937 rng(777);
+    RandomTestSetup setup(rng, 0.5, 0.05);
 
-    Vector3 pS = randomVector3(rng, 0.5);
-    Vector3 qT = pS + randomVector3(rng, 0.1);
-    Vector3 nT = randomUnitVector<3>(rng);
-    Vector3 dS0 = -nT + randomVector3(rng, 0.2);
-    dS0.normalize();
+    ForwardRayCostConsistent costConsistent(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
+    ForwardRayCostSimplified costSimplified(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
 
-    Quaternion q = randomQuaternion(rng);
-    Vector3 t = randomVector3(rng, 0.05);
-    double x[7] = {q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z()};
-
-    GeometryWeighting weighting;
-    weighting.enable_weight = false;
-    weighting.enable_gate = false;
-
-    RayProjectionFwdConsistent costConsistent(pS, qT, nT, dS0, weighting);
-    RayProjectionFwd costSimplified(pS, qT, nT, dS0, weighting);
-
-    auto J6_cons = getAnalyticalJacobian6(costConsistent, x);
-    auto J6_simp = getAnalyticalJacobian6(costSimplified, x);
+    auto J6_cons = getAnalyticalJacobian6(costConsistent, setup.x);
+    auto J6_simp = getAnalyticalJacobian6(costSimplified, setup.x);
     auto epsilons = logarithmicEpsilons();
+
+    ValidationResult validation;
 
     WARN("=== TRANSLATION ===");
     WARN("J6_cons (t) = [" << J6_cons(0) << ", " << J6_cons(1) << ", " << J6_cons(2) << "]");
@@ -550,15 +603,20 @@ TEST_CASE("Epsilon sweep: simplified vs consistent", "[jacobians][epsilon]")
         Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
         delta6(k) = 1.0;  // Unit vector in translation direction k
 
-        auto result = sweepEpsilon(costConsistent, x, delta6, J6_cons(k), epsilons);
+        auto result = sweepEpsilon(costConsistent, setup.x, delta6, J6_cons(k), epsilons);
         double err_cons = std::abs(result.best_df_num - J6_cons(k));
         double err_simp = std::abs(result.best_df_num - J6_simp(k));
 
         WARN("  t[" << k << "]: FD=" << result.best_df_num << " cons=" << J6_cons(k) << " simp=" << J6_simp(k)
                     << " | err_cons=" << err_cons << " err_simp=" << err_simp << " best_eps=" << result.best_eps);
 
-        CHECK(err_cons < 1e-10);
-        CHECK(err_simp < 1e-10);
+        std::ostringstream oss;
+        oss << "t[" << k << "] cons err=" << err_cons;
+        validation.check(err_cons, 1e-10, oss.str());
+
+        oss.str("");
+        oss << "t[" << k << "] simp err=" << err_simp;
+        validation.check(err_simp, 1e-10, oss.str());
     }
 
     WARN("=== ROTATION ===");
@@ -570,58 +628,165 @@ TEST_CASE("Epsilon sweep: simplified vs consistent", "[jacobians][epsilon]")
         Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
         delta6(3 + k) = 1.0;  // Unit vector in rotation direction k
 
-        auto result = sweepEpsilon(costConsistent, x, delta6, J6_cons(3 + k), epsilons);
+        auto result = sweepEpsilon(costConsistent, setup.x, delta6, J6_cons(3 + k), epsilons);
         double err_cons = std::abs(result.best_df_num - J6_cons(3 + k));
         double err_simp = std::abs(result.best_df_num - J6_simp(3 + k));
 
         WARN("  w[" << k << "]: FD=" << result.best_df_num << " cons=" << J6_cons(3 + k) << " simp=" << J6_simp(3 + k)
                     << " | err_cons=" << err_cons << " err_simp=" << err_simp << " best_eps=" << result.best_eps);
 
-        CHECK(err_cons < 1e-10);
+        std::ostringstream oss;
+        oss << "w[" << k << "] cons err=" << err_cons;
+        validation.check(err_cons, 1e-10, oss.str());
         // Simplified will NOT match for rotation (ignores db_dq term)
+    }
+
+    INFO("Worst failure: " << validation.worst_desc << " (tol=" << validation.worst_tol << ")");
+    CHECK(validation.passed);
+}
+
+/**
+ * Policy-based validation using JacobianTraits.
+ *
+ * Uses the policy_tag from each cost functor to automatically
+ * select appropriate epsilon and tolerance values.
+ */
+TEST_CASE("Policy-based jacobian validation", "[jacobians][policy]")
+{
+    std::mt19937 rng(888);
+    RandomTestSetup setup(rng);
+
+    SECTION("ForwardRayCost<RayJacobianSimplified>")
+    {
+        ForwardRayCostSimplified cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
+        static_assert(std::is_same_v<decltype(cost)::policy_tag, RayJacobianSimplified>);
+        validateJacobianWithPolicy(cost, setup.x, rng);
+    }
+
+    SECTION("ForwardRayCost<RayJacobianConsistent>")
+    {
+        ForwardRayCostConsistent cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
+        static_assert(std::is_same_v<decltype(cost)::policy_tag, RayJacobianConsistent>);
+        validateJacobianWithPolicy(cost, setup.x, rng);
+    }
+
+    SECTION("ReverseRayCost<RayJacobianSimplified>")
+    {
+        ReverseRayCostSimplified cost(setup.qT, setup.pS, setup.nT, setup.dS0, setup.weighting);
+        static_assert(std::is_same_v<decltype(cost)::policy_tag, RayJacobianSimplified>);
+        validateJacobianWithPolicy(cost, setup.x, rng);
+    }
+
+    SECTION("ReverseRayCost<RayJacobianConsistent>")
+    {
+        ReverseRayCostConsistent cost(setup.qT, setup.pS, setup.nT, setup.dS0, setup.weighting);
+        static_assert(std::is_same_v<decltype(cost)::policy_tag, RayJacobianConsistent>);
+        validateJacobianWithPolicy(cost, setup.x, rng);
     }
 }
 
 /**
- * Test reverse direction jacobian (RayProjectionRevConsistent).
+ * Test reverse direction jacobian with epsilon sweep.
  */
-TEST_CASE("RayProjectionRevConsistent directional derivative validation", "[jacobians][fd][reverse]")
+TEST_CASE("Reverse consistent jacobian epsilon sweep", "[jacobians][fd][reverse]")
 {
     std::mt19937 rng(555);
+    RandomTestSetup setup(rng, 0.5, 0.05);
 
-    Vector3 pT = randomVector3(rng, 0.5);
-    Vector3 qS = pT + randomVector3(rng, 0.1);
-    Vector3 nS = randomUnitVector<3>(rng);
-    Vector3 dT0 = -nS + randomVector3(rng, 0.1);
-    dT0.normalize();
+    ReverseRayCostConsistent cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
+    validateWithEpsilonSweep(cost, setup.x, rng, 10);
+}
 
-    Quaternion q = randomQuaternion(rng);
-    Vector3 t = randomVector3(rng, 0.05);
-    double x[7] = {q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z()};
+/**
+ * Diagnostic: Verify Simplified error equals the missing db_dq term.
+ *
+ * With weight w = weighting.weight(b):
+ *   Simplified:  dr/dq = w * da_dq / b
+ *   Consistent:  dr/dq = w * (da_dq * b - a * db_dq) / b²
+ *
+ * Therefore:   Consistent - Simplified = -w * a * db_dq / b²
+ *
+ * This test verifies the difference matches the expected missing term.
+ */
+TEST_CASE("Simplified error equals missing db_dq term", "[jacobians][diagnostic]")
+{
+    std::mt19937 rng(777);
+    RandomTestSetup setup(rng, 0.5, 0.05);
 
+    // Extract pose
+    Quaternion q(setup.x[3], setup.x[0], setup.x[1], setup.x[2]);
+    q.normalize();
+    Vector3 t(setup.x[4], setup.x[5], setup.x[6]);
+    Matrix3 R = q.toRotationMatrix();
+
+    // Compute intermediate values
+    Vector3 xT = R * setup.pS + t;
+    Vector3 d = R * setup.dS0;
+    double a = setup.nT.dot(xT - setup.qT);
+    double b = setup.nT.dot(d);
+
+    // Get weight (must match what the cost functions use)
     GeometryWeighting weighting;
-    weighting.enable_weight = false;
-    weighting.enable_gate = false;
-    RayProjectionRevConsistent cost(pT, qS, nS, dT0, weighting);
+    double w = weighting.weight(b);
 
-    auto J_ana6 = getAnalyticalJacobian6(cost, x);
-    auto epsilons = logarithmicEpsilons();
+    // Compute db_dq = nT^T * dRd_dq
+    Matrix3x4 dRd_dq = dRv_dq(q, setup.dS0);
+    Eigen::RowVector4d db_dq = setup.nT.transpose() * dRd_dq;
 
-    constexpr int numDirections = 10;
-    double scales[] = {1.0, 0.1, 10.0};
+    // Expected missing term: -w * a * db_dq / b²
+    // The jacobians include w, so the difference must also include w
+    Eigen::RowVector4d missing_term = -w * a * db_dq / (b * b);
+    ForwardRayCostSimplified costSimp(setup.pS, setup.qT, setup.nT, setup.dS0, weighting);
+    ForwardRayCostConsistent costCons(setup.pS, setup.qT, setup.nT, setup.dS0, weighting);
 
-    for (double scale : scales)
+    double const* parameters[1] = {setup.x};
+    double residual;
+    double J7_simp[7], J7_cons[7];
+    double* jac_simp[1] = {J7_simp};
+    double* jac_cons[1] = {J7_cons};
+
+    costSimp(parameters, &residual, jac_simp);
+    costCons(parameters, &residual, jac_cons);
+
+    double q_norm = std::sqrt(setup.x[0]*setup.x[0] + setup.x[1]*setup.x[1] +
+                               setup.x[2]*setup.x[2] + setup.x[3]*setup.x[3]);
+
+    WARN("=== Diagnostic: Simplified error analysis ===");
+    WARN("q_norm (input) = " << std::setprecision(15) << q_norm);
+    WARN("a (signed distance) = " << a);
+    WARN("b (ray-normal dot)  = " << b);
+    WARN("w (weight)          = " << w);
+    WARN("a/b ratio = " << std::abs(a/b));
+
+    WARN("=== Quaternion jacobian differences (rotation part only) ===");
+
+    ValidationResult validation;
+
+    for (int i = 0; i < 4; ++i)
     {
-        for (int d = 0; d < numDirections; ++d)
-        {
-            Eigen::Matrix<double, 6, 1> delta6 = scale * randomUnitVector<6>(rng);
-            double df_ana = J_ana6.dot(delta6);
+        double diff = J7_cons[i] - J7_simp[i];
+        double expected = missing_term(i);
+        double match_err = std::abs(diff - expected);
+        double rel_err = std::abs(expected) > 1e-10 ? match_err / std::abs(expected) : match_err;
 
-            auto result = sweepEpsilon(cost, x, delta6, df_ana, epsilons);
-            double rel_err = result.min_err / std::max(1.0, std::abs(df_ana));
+        WARN("  q[" << i << "]: cons=" << J7_cons[i] << " simp=" << J7_simp[i]
+                    << " diff=" << diff << " expected=" << expected
+                    << " match_err=" << match_err << " rel_err=" << rel_err);
 
-            INFO("scale=" << scale << " dir=" << d << " rel_err=" << rel_err);
-            CHECK(rel_err < 1e-6);
-        }
+        std::ostringstream oss;
+        oss << "q[" << i << "]: rel_err=" << rel_err;
+        validation.check(rel_err, 1e-12, oss.str());
     }
+
+    // Translation jacobian should be identical
+    for (int i = 4; i < 7; ++i)
+    {
+        double diff = std::abs(J7_cons[i] - J7_simp[i]);
+        std::ostringstream oss;
+        oss << "t[" << i-4 << "]: diff=" << diff;
+        validation.check(diff, 1e-15, oss.str());
+    }
+
+    INFO("Worst failure: " << validation.worst_desc << " (tol=" << validation.worst_tol << ")");
+    CHECK(validation.passed);
 }

@@ -1,0 +1,10 @@
+# tinyexr CMake config (header-only library)
+if(NOT TARGET tinyexr::tinyexr)
+  add_library(tinyexr::tinyexr INTERFACE IMPORTED)
+  # tinyexr requires miniz
+  find_package(miniz REQUIRED)
+  set_target_properties(tinyexr::tinyexr PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "@CMAKE_INSTALL_PREFIX@/include/tinyexr;@CMAKE_INSTALL_PREFIX@/include/miniz"
+    INTERFACE_LINK_LIBRARIES miniz::miniz
+  )
+endif()

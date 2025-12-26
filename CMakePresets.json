@@ -1,0 +1,124 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 22,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "default",
+            "binaryDir": "build/${presetName}",
+            "generator": "Ninja Multi-Config"
+        },
+        {
+            "name": "linux-gcc",
+            "inherits": "default",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/gcc/install"
+            }
+        },
+        {
+            "name": "linux-clang",
+            "inherits": "default",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/clang/install"
+            }
+        },
+        {
+            "name": "windows-msvc",
+            "inherits": "default",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/cl/install"
+            }
+        },
+        {
+            "name": "windows-clangcl",
+            "inherits": "default",
+            "displayName": "Windows CLANG-CL",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_CXX_COMPILER": "clang-cl",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/clang-cl/install"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug",
+            "configurePreset": "linux-gcc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release",
+            "configurePreset": "linux-gcc",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug-clang",
+            "configurePreset": "linux-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release-clang",
+            "configurePreset": "linux-clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug-windows",
+            "configurePreset": "windows-msvc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release-windows",
+            "configurePreset": "windows-msvc",
+            "configuration": "Release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "core-test",
+            "description": "Enable output on failure",
+            "configurePreset": "linux-gcc",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "core-test-clang",
+            "description": "Enable output on failure",
+            "configurePreset": "linux-clang",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

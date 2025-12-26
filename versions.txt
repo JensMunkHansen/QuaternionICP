@@ -1,0 +1,15 @@
+# Dependency Versions for PBB Projects
+# Format: KEY=VALUE (one per line)
+# Lines starting with # are comments and will be ignored
+
+CATCH2_VERSION=3.5.2
+EIGEN3_VERSION=3.4.0
+TBB_VERSION=2021.13.0
+
+# Ceres ecosystem (MultiViewICP)
+ABSEIL_VERSION=20230125.3
+CERES_VERSION=2.2.0
+SOPHUS_VERSION=1.22.10
+ARGS_VERSION=6.4.7
+MINIZ_VERSION=3.0.2
+TINYEXR_VERSION=v1.0.9

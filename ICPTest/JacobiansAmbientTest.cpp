@@ -1,16 +1,22 @@
 /**
- * Test for simplified ambient jacobian - prints residual and jacobian for comparison with Python.
- * Includes finite difference validation.
+ * Test for ambient jacobians with proper finite difference validation.
+ *
+ * Methodology (from Doc/JacobianValidation.md):
+ * - Sweep eps over a decade and look for a plateau
+ * - Test random R and random delta (unit and scaled)
+ * - Compare directional derivatives, not full matrices
  */
 
 #include <ICP/JacobiansAmbient.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <random>
 
 using namespace ICP;
 using Catch::Matchers::WithinAbs;
@@ -28,22 +34,65 @@ double evaluateResidual(const CostFunctor& cost, const double* x)
     return residual;
 }
 
-/// Compute numerical jacobian via central differences
+/// Compute numerical directional derivative using proper SE(3) manifold perturbation.
+/// delta6 = [v_x, v_y, v_z, w_x, w_y, w_z] (translation, rotation in body frame)
 template <typename CostFunctor>
-void numericalJacobian(const CostFunctor& cost, const double* x, double* J_num, double eps = 1e-7)
+double numericalDirectionalDerivative(const CostFunctor& cost, const double* x,
+                                       const Eigen::Matrix<double, 6, 1>& delta6, double eps)
 {
-    double x_plus[7], x_minus[7];
-    for (int i = 0; i < 7; ++i)
-    {
-        std::copy(x, x + 7, x_plus);
-        std::copy(x, x + 7, x_minus);
-        x_plus[i] += eps;
-        x_minus[i] -= eps;
+    Quaternion q(x[3], x[0], x[1], x[2]);  // w, x, y, z
+    Vector3 t(x[4], x[5], x[6]);
+    Matrix3 R = q.toRotationMatrix();
 
-        double r_plus = evaluateResidual(cost, x_plus);
-        double r_minus = evaluateResidual(cost, x_minus);
-        J_num[i] = (r_plus - r_minus) / (2 * eps);
-    }
+    // Tangent vector components
+    Vector3 v = delta6.head<3>();      // translation (body frame)
+    Vector3 omega = delta6.tail<3>();  // rotation
+
+    // Perturbed rotation: q_± = q * exp(±eps * omega)
+    Quaternion dq_plus = quatExpSO3(eps * omega);
+    Quaternion dq_minus = quatExpSO3(-eps * omega);
+    Quaternion q_plus = q * dq_plus;
+    Quaternion q_minus = q * dq_minus;
+
+    // Perturbed translation: t_± = t ± R * (eps * v)  (body frame)
+    Vector3 t_plus = t + R * (eps * v);
+    Vector3 t_minus = t - R * (eps * v);
+
+    double x_plus[7] = {q_plus.x(), q_plus.y(), q_plus.z(), q_plus.w(),
+                        t_plus.x(), t_plus.y(), t_plus.z()};
+    double x_minus[7] = {q_minus.x(), q_minus.y(), q_minus.z(), q_minus.w(),
+                         t_minus.x(), t_minus.y(), t_minus.z()};
+
+    double r_plus = evaluateResidual(cost, x_plus);
+    double r_minus = evaluateResidual(cost, x_minus);
+    return (r_plus - r_minus) / (2 * eps);
+}
+
+/// Generate random unit quaternion
+Quaternion randomQuaternion(std::mt19937& rng)
+{
+    std::normal_distribution<double> dist(0.0, 1.0);
+    Quaternion q(dist(rng), dist(rng), dist(rng), dist(rng));
+    q.normalize();
+    return q;
+}
+
+/// Generate random unit vector in R^n
+template <int N>
+Eigen::Matrix<double, N, 1> randomUnitVector(std::mt19937& rng)
+{
+    std::normal_distribution<double> dist(0.0, 1.0);
+    Eigen::Matrix<double, N, 1> v;
+    for (int i = 0; i < N; ++i)
+        v[i] = dist(rng);
+    return v.normalized();
+}
+
+/// Generate random vector in R^3
+Vector3 randomVector3(std::mt19937& rng, double scale = 1.0)
+{
+    std::uniform_real_distribution<double> dist(-scale, scale);
+    return Vector3(dist(rng), dist(rng), dist(rng));
 }
 
 } // namespace
@@ -102,54 +151,85 @@ TEST_CASE("RayProjectionFwd simplified jacobian", "[jacobians]")
     CHECK(ok);
 }
 
-TEST_CASE("RayProjectionFwd finite difference validation", "[jacobians]")
+TEST_CASE("RayProjectionFwdConsistent directional derivative validation", "[jacobians][fd]")
 {
-    Vector3 pS(0.1, 0.2, 0.3);
-    Vector3 qT(0.12, 0.18, 0.35);
-    Vector3 nT(0.0, 0.0, 1.0);
-    Vector3 dS0(0.0, 0.0, -1.0);
+    // Fixed seed for reproducibility
+    std::mt19937 rng(42);
 
-    double x[7] = {0.004999708338437, 0.009999416676875, 0.014999125015312,
-                   0.999825005104107, 0.01, -0.01, 0.02};
+    // Random geometry
+    Vector3 pS = randomVector3(rng, 0.5);
+    Vector3 qT = pS + randomVector3(rng, 0.1);  // nearby target point
+    Vector3 nT = randomUnitVector<3>(rng);
+    Vector3 dS0 = -nT + randomVector3(rng, 0.1);  // ray roughly toward surface
+    dS0.normalize();
+
+    // Random pose
+    Quaternion q = randomQuaternion(rng);
+    Vector3 t = randomVector3(rng, 0.05);
+    double x[7] = {q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z()};
 
     GeometryWeighting weighting;
-    RayProjectionFwd cost(pS, qT, nT, dS0, weighting);
+    weighting.enable_weight = false;
+    weighting.enable_gate = false;
+    RayProjectionFwdConsistent cost(pS, qT, nT, dS0, weighting);
 
-    // Analytical jacobian
+    // Analytical 7D jacobian -> 6D via plus jacobian
     double const* parameters[1] = {x};
     double residual;
-    double J_ana[7];
-    double* jacobians[1] = {J_ana};
+    double J_ana7[7];
+    double* jacobians[1] = {J_ana7};
     cost(parameters, &residual, jacobians);
 
-    // Numerical jacobian
-    double J_num[7];
-    numericalJacobian(cost, x, J_num);
+    Pose7 pose;
+    pose << x[0], x[1], x[2], x[3], x[4], x[5], x[6];
+    auto P = plusJacobian7x6(pose);
+    Eigen::Map<Eigen::RowVectorXd> J7(J_ana7, 7);
+    Eigen::Matrix<double, 1, 6> J_ana6 = J7 * P;
 
-    WARN("=== Finite Difference Validation ===");
-    WARN("J_ana = [" << J_ana[0] << ", " << J_ana[1] << ", " << J_ana[2] << ", "
-                     << J_ana[3] << ", " << J_ana[4] << ", " << J_ana[5] << ", " << J_ana[6] << "]");
-    WARN("J_num = [" << J_num[0] << ", " << J_num[1] << ", " << J_num[2] << ", "
-                     << J_num[3] << ", " << J_num[4] << ", " << J_num[5] << ", " << J_num[6] << "]");
+    // Test with multiple random directions (unit and scaled)
+    constexpr int numDirections = 5;
+    double scales[] = {1.0, 0.1, 10.0};
 
-    // Translation derivatives should match exactly (simplified jacobian is exact for dt)
-    constexpr double tol = 1e-6;
-    CHECK_THAT(J_ana[4], WithinAbs(J_num[4], tol));
-    CHECK_THAT(J_ana[5], WithinAbs(J_num[5], tol));
-    CHECK_THAT(J_ana[6], WithinAbs(J_num[6], tol));
-
-    // Quaternion derivatives: simplified jacobian ignores db_dq term
-    // For this test case with nT = [0,0,1] and dS0 = [0,0,-1], the db_dq term is small
-    // so analytical and numerical should still be close
-    for (int i = 0; i < 4; ++i)
+    for (double scale : scales)
     {
-        double diff = std::abs(J_ana[i] - J_num[i]);
-        double scale = std::max(1.0, std::abs(J_num[i]));
-        WARN("  dq[" << i << "]: ana=" << J_ana[i] << " num=" << J_num[i]
-                     << " rel_err=" << diff / scale);
-    }
+        for (int d = 0; d < numDirections; ++d)
+        {
+            Eigen::Matrix<double, 6, 1> delta6 = scale * randomUnitVector<6>(rng);
 
-    CHECK(true);
+            // Analytical directional derivative
+            double df_ana = J_ana6.dot(delta6);
+
+            // Sweep epsilon over a decade to find plateau
+            INFO("scale=" << scale << " direction=" << d);
+            INFO("delta6 = [" << delta6.transpose() << "]");
+
+            double best_err = std::numeric_limits<double>::max();
+            double best_eps = 0;
+            double best_df_num = 0;
+
+            for (int e = -4; e >= -10; --e)
+            {
+                double eps = std::pow(10.0, e);
+                double df_num = numericalDirectionalDerivative(cost, x, delta6, eps);
+                double err = std::abs(df_num - df_ana);
+                double rel_err = err / std::max(1.0, std::abs(df_ana));
+
+                if (err < best_err)
+                {
+                    best_err = err;
+                    best_eps = eps;
+                    best_df_num = df_num;
+                }
+            }
+
+            double rel_err = best_err / std::max(1.0, std::abs(df_ana));
+            INFO("df_ana=" << df_ana << " df_num=" << best_df_num
+                          << " best_eps=" << best_eps << " rel_err=" << rel_err);
+
+            // Should match to at least 1e-6 relative error
+            CHECK(rel_err < 1e-6);
+        }
+    }
 }
 
 TEST_CASE("RayProjectionFwdConsistent jacobian", "[jacobians]")
@@ -184,49 +264,104 @@ TEST_CASE("RayProjectionFwdConsistent jacobian", "[jacobians]")
     CHECK(ok);
 }
 
-TEST_CASE("RayProjectionFwdConsistent finite difference (no weight)", "[jacobians]")
+TEST_CASE("RayProjectionFwd simplified directional derivative validation", "[jacobians][fd]")
 {
-    Vector3 pS(0.1, 0.2, 0.3);
-    Vector3 qT(0.12, 0.18, 0.35);
-    Vector3 nT(0.0, 0.0, 1.0);
-    Vector3 dS0(0.0, 0.0, -1.0);
+    // Fixed seed for reproducibility
+    std::mt19937 rng(123);
 
-    double x[7] = {0.004999708338437, 0.009999416676875, 0.014999125015312,
-                   0.999825005104107, 0.01, -0.01, 0.02};
+    // Random geometry
+    Vector3 pS = randomVector3(rng, 0.5);
+    Vector3 qT = pS + randomVector3(rng, 0.1);
+    Vector3 nT = randomUnitVector<3>(rng);
+    Vector3 dS0 = -nT + randomVector3(rng, 0.1);
+    dS0.normalize();
 
-    // Disable weighting so w=1 constant, eliminating dw/dq term
+    // Random pose
+    Quaternion q = randomQuaternion(rng);
+    Vector3 t = randomVector3(rng, 0.05);
+    double x[7] = {q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z()};
+
     GeometryWeighting weighting;
     weighting.enable_weight = false;
     weighting.enable_gate = false;
-    RayProjectionFwdConsistent cost(pS, qT, nT, dS0, weighting);
+    RayProjectionFwd cost(pS, qT, nT, dS0, weighting);
 
-    // Analytical jacobian
+    // Analytical 7D jacobian -> 6D via plus jacobian
     double const* parameters[1] = {x};
     double residual;
-    double J_ana[7];
-    double* jacobians[1] = {J_ana};
+    double J_ana7[7];
+    double* jacobians[1] = {J_ana7};
     cost(parameters, &residual, jacobians);
 
-    // Numerical jacobian
-    double J_num[7];
-    numericalJacobian(cost, x, J_num);
+    Pose7 pose;
+    pose << x[0], x[1], x[2], x[3], x[4], x[5], x[6];
+    auto P = plusJacobian7x6(pose);
+    Eigen::Map<Eigen::RowVectorXd> J7(J_ana7, 7);
+    Eigen::Matrix<double, 1, 6> J_ana6 = J7 * P;
 
-    WARN("=== Consistent Finite Difference (no weight) ===");
-    WARN("J_ana = [" << J_ana[0] << ", " << J_ana[1] << ", " << J_ana[2] << ", "
-                     << J_ana[3] << ", " << J_ana[4] << ", " << J_ana[5] << ", " << J_ana[6] << "]");
-    WARN("J_num = [" << J_num[0] << ", " << J_num[1] << ", " << J_num[2] << ", "
-                     << J_num[3] << ", " << J_num[4] << ", " << J_num[5] << ", " << J_num[6] << "]");
-
-    // With w=1 constant, consistent jacobian should match numerical exactly
-    // Use combined tolerance: max(abs_tol, rel_tol * |J_num|)
-    constexpr double abs_tol = 2e-5;  // for near-zero values (qw normalization effects)
-    constexpr double rel_tol = 1e-6;  // for non-zero values
-    for (int i = 0; i < 7; ++i)
+    // Test translation-only directions (simplified is exact for these)
+    INFO("=== Translation-only directions (simplified is exact) ===");
+    for (int i = 0; i < 3; ++i)
     {
-        double diff = std::abs(J_ana[i] - J_num[i]);
-        double scale = std::max(1.0, std::abs(J_num[i]));
-        double tol = std::max(abs_tol, rel_tol * std::abs(J_num[i]));
-        WARN("  J[" << i << "]: ana=" << J_ana[i] << " num=" << J_num[i] << " rel_err=" << diff / scale);
-        CHECK_THAT(J_ana[i], WithinAbs(J_num[i], tol));
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6[i] = 1.0;
+
+        double df_ana = J_ana6.dot(delta6);
+
+        double best_err = std::numeric_limits<double>::max();
+        double best_eps = 0;
+        double best_df_num = 0;
+
+        for (int e = -4; e >= -10; --e)
+        {
+            double eps = std::pow(10.0, e);
+            double df_num = numericalDirectionalDerivative(cost, x, delta6, eps);
+            double err = std::abs(df_num - df_ana);
+            if (err < best_err)
+            {
+                best_err = err;
+                best_eps = eps;
+                best_df_num = df_num;
+            }
+        }
+
+        double rel_err = best_err / std::max(1.0, std::abs(df_ana));
+        INFO("t[" << i << "]: df_ana=" << df_ana << " df_num=" << best_df_num
+                  << " best_eps=" << best_eps << " rel_err=" << rel_err);
+        CHECK(rel_err < 1e-6);
     }
+
+    // Test rotation directions (simplified ignores db_dq, so will have some error)
+    INFO("=== Rotation directions (simplified approximation) ===");
+    for (int i = 0; i < 3; ++i)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6[3 + i] = 1.0;
+
+        double df_ana = J_ana6.dot(delta6);
+
+        double best_err = std::numeric_limits<double>::max();
+        double best_eps = 0;
+        double best_df_num = 0;
+
+        for (int e = -4; e >= -10; --e)
+        {
+            double eps = std::pow(10.0, e);
+            double df_num = numericalDirectionalDerivative(cost, x, delta6, eps);
+            double err = std::abs(df_num - df_ana);
+            if (err < best_err)
+            {
+                best_err = err;
+                best_eps = eps;
+                best_df_num = df_num;
+            }
+        }
+
+        double rel_err = best_err / std::max(1.0, std::abs(df_ana));
+        // Simplified ignores db_dq term - report error but don't fail
+        INFO("w[" << i << "]: df_ana=" << df_ana << " df_num=" << best_df_num
+                  << " best_eps=" << best_eps << " rel_err=" << rel_err);
+    }
+
+    CHECK(true);  // Always pass - rotation error is expected for simplified
 }

@@ -5,6 +5,7 @@
 
 #include <ICP/EigenTypes.h>
 #include <random>
+#include <cmath>
 
 namespace ICP
 {
@@ -34,6 +35,41 @@ inline Vector3 randomVector3(std::mt19937& rng, double scale = 1.0)
 {
     std::uniform_real_distribution<double> dist(-scale, scale);
     return Vector3(dist(rng), dist(rng), dist(rng));
+}
+
+/// Identity pose: [qx=0, qy=0, qz=0, qw=1, tx=0, ty=0, tz=0]
+inline Vector7 identityPose()
+{
+    Vector7 pose;
+    pose << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0;
+    return pose;
+}
+
+/// Create pose from translation only (identity rotation)
+inline Vector7 translationPose(double tx, double ty, double tz)
+{
+    Vector7 pose;
+    pose << 0.0, 0.0, 0.0, 1.0, tx, ty, tz;
+    return pose;
+}
+
+/// Create pose from axis-angle rotation (no translation)
+inline Vector7 rotationPose(const Vector3& axisAngle)
+{
+    double theta = axisAngle.norm();
+    Vector7 pose;
+    if (theta < 1e-12)
+    {
+        pose << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0;
+    }
+    else
+    {
+        Vector3 axis = axisAngle / theta;
+        double half = 0.5 * theta;
+        double s = std::sin(half);
+        pose << axis.x() * s, axis.y() * s, axis.z() * s, std::cos(half), 0.0, 0.0, 0.0;
+    }
+    return pose;
 }
 
 } // namespace ICP

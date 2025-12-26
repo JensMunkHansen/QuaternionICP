@@ -8,6 +8,12 @@
 - Build: `cmake --build build/linux-gcc`
 - Test: `ctest --test-dir build/linux-gcc -C Debug`
 
+## C++ Build Rules
+
+- Never compile standalone .cpp files with g++ directly
+- Always use the CMake build system (ninja) - it handles include paths, library linking, and compiler flags
+- To test new code: add to existing tests or create new CMake-registered tests, then build with `ninja`
+
 ## Roadmap
 
 1. **Jacobians.h** - Point-to-plane Jacobians for the 7D ambient parameterization

@@ -112,4 +112,40 @@ inline std::vector<Correspondence> computeRayCorrespondences(
     return correspondences;
 }
 
+/// Bidirectional correspondences for ICP
+struct BidirectionalCorrs
+{
+    std::vector<Correspondence> forward;   // source → target
+    std::vector<Correspondence> reverse;   // target → source
+};
+
+/**
+ * Compute bidirectional ray correspondences.
+ *
+ * @param source   Source grid (rays originate here for forward)
+ * @param target   Target grid (rays originate here for reverse)
+ * @param rayDir   Ray direction in local frame (typically [0,0,-1])
+ * @param srcToTgt Transform from source to target coordinates
+ * @param maxDist  Maximum ray distance
+ * @return Forward and reverse correspondences
+ */
+inline BidirectionalCorrs computeBidirectionalCorrs(
+    const Grid& source,
+    const Grid& target,
+    const Eigen::Vector3f& rayDir,
+    const Eigen::Isometry3d& srcToTgt,
+    float maxDist)
+{
+    BidirectionalCorrs result;
+
+    // Forward: rays from source, intersect target
+    result.forward = computeRayCorrespondences(source, target, rayDir, srcToTgt, maxDist);
+
+    // Reverse: rays from target, intersect source
+    Eigen::Isometry3d tgtToSrc = srcToTgt.inverse();
+    result.reverse = computeRayCorrespondences(target, source, rayDir, tgtToSrc, maxDist);
+
+    return result;
+}
+
 } // namespace ICP

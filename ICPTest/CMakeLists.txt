@@ -1,21 +1,9 @@
-add_executable(TestCorrespondences
-    TestCorrespondences.cpp
-)
+macro(add_icp_test name)
+    add_executable(${name} ${name}.cpp)
+    target_link_libraries(${name} PRIVATE ICP Catch2::Catch2WithMain)
+    catch_discover_tests(${name})
+endmacro()
 
-target_link_libraries(TestCorrespondences PRIVATE
-    ICP
-    Catch2::Catch2WithMain
-)
-
-catch_discover_tests(TestCorrespondences)
-
-add_executable(TestSE3
-    TestSE3.cpp
-)
-
-target_link_libraries(TestSE3 PRIVATE
-    ICP
-    Catch2::Catch2WithMain
-)
-
-catch_discover_tests(TestSE3)
+add_icp_test(CorrespondencesTest)
+add_icp_test(SE3Test)
+add_icp_test(JacobiansAmbientTest)

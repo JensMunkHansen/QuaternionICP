@@ -293,10 +293,9 @@ class Ambient:
         # dr/dt
         dr_dt = nT / b
 
-        # dr/dq: full quotient rule
+        # dr/dq: simplified (ignore db_dq term)
         da_dq = nT @ dR_times_v_dq_xyzw(q, pS)
-        db_dq = nT @ dR_times_v_dq_xyzw(q, dS0)
-        dr_dq = (da_dq * b - a * db_dq) / (b * b)
+        dr_dq = da_dq / b
 
         J7 = np.hstack([dr_dq, dr_dt])
         return True, w * r, w * J7
@@ -336,10 +335,9 @@ class Ambient:
         # dr/dt
         dr_dt = (nS @ (-R.T)) / b
 
-        # dr/dq: full quotient rule
+        # dr/dq: simplified (ignore db_dq term)
         da_dq = nS @ dRT_times_v_dq_xyzw(q, u)
-        db_dq = nS @ dRT_times_v_dq_xyzw(q, dT0)
-        dr_dq = (da_dq * b - a * db_dq) / (b * b)
+        dr_dq = da_dq / b
 
         J7 = np.hstack([dr_dq, dr_dt])
         return True, w * r, w * J7
@@ -377,32 +375,24 @@ class Ambient:
         if w == 0.0:
             return True, r, np.zeros(7), np.zeros(7)
 
-        # A block (full quotient rule)
+        # A block (simplified)
         da_dtA = nB @ RB.T
-        db_dtA = np.zeros(3)
+        dr_dtA = da_dtA / b
 
         dx_dqA = RB.T @ dR_times_v_dq_xyzw(qA, pA)
         da_dqA = nB @ dx_dqA
+        dr_dqA = da_dqA / b
 
-        dd_dqA = RB.T @ dR_times_v_dq_xyzw(qA, dA0)
-        db_dqA = nB @ dd_dqA
-
-        dr_dqA = (da_dqA * b - a * db_dqA) / (b * b)
-        dr_dtA = (da_dtA * b - a * db_dtA) / (b * b)
         J7A = np.hstack([dr_dqA, dr_dtA])
 
-        # B block (full quotient rule)
+        # B block (simplified)
         da_dtB = nB @ (-RB.T)
-        db_dtB = np.zeros(3)
+        dr_dtB = da_dtB / b
 
         dx_dqB = dRT_times_v_dq_xyzw(qB, U)
         da_dqB = nB @ dx_dqB
+        dr_dqB = da_dqB / b
 
-        dd_dqB = dRT_times_v_dq_xyzw(qB, u_d)
-        db_dqB = nB @ dd_dqB
-
-        dr_dqB = (da_dqB * b - a * db_dqB) / (b * b)
-        dr_dtB = (da_dtB * b - a * db_dtB) / (b * b)
         J7B = np.hstack([dr_dqB, dr_dtB])
 
         return True, w * r, w * J7A, w * J7B
@@ -440,32 +430,24 @@ class Ambient:
         if w == 0.0:
             return True, r, np.zeros(7), np.zeros(7)
 
-        # B block (full quotient rule)
+        # B block (simplified)
         da_dtB = nA @ RA.T
-        db_dtB = np.zeros(3)
+        dr_dtB = da_dtB / b
 
         dx_dqB = RA.T @ dR_times_v_dq_xyzw(qB, pB)
         da_dqB = nA @ dx_dqB
+        dr_dqB = da_dqB / b
 
-        dd_dqB = RA.T @ dR_times_v_dq_xyzw(qB, dB0)
-        db_dqB = nA @ dd_dqB
-
-        dr_dqB = (da_dqB * b - a * db_dqB) / (b * b)
-        dr_dtB = (da_dtB * b - a * db_dtB) / (b * b)
         J7B = np.hstack([dr_dqB, dr_dtB])
 
-        # A block (full quotient rule)
+        # A block (simplified)
         da_dtA = nA @ (-RA.T)
-        db_dtA = np.zeros(3)
+        dr_dtA = da_dtA / b
 
         dx_dqA = dRT_times_v_dq_xyzw(qA, V)
         da_dqA = nA @ dx_dqA
+        dr_dqA = da_dqA / b
 
-        dd_dqA = dRT_times_v_dq_xyzw(qA, v_d)
-        db_dqA = nA @ dd_dqA
-
-        dr_dqA = (da_dqA * b - a * db_dqA) / (b * b)
-        dr_dtA = (da_dtA * b - a * db_dtA) / (b * b)
         J7A = np.hstack([dr_dqA, dr_dtA])
 
         return True, w * r, w * J7A, w * J7B

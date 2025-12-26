@@ -1,5 +1,10 @@
 # QuaternionICP Development Notes
 
+## Environment
+
+- Python virtual environment: `source ~/Environments/py313/bin/activate`
+- CMake preset: `linux-gcc`
+
 ## Roadmap
 
 1. **Jacobians.h** - Point-to-plane Jacobians for the 7D ambient parameterization

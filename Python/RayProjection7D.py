@@ -18,7 +18,21 @@ We still solve in 6D locally exactly like Ceres does:
 import numpy as np
 import trimesh
 
+from se3_utils import (
+    skew,
+    quat_normalize as quat_normalize_xyzw,
+    quat_mul as quat_mul_xyzw,
+    quat_to_R as quat_to_R_xyzw,
+    quat_exp_so3 as quat_exp_so3_xyzw,
+    V_matrix_so3,
+    se3_plus as se3_plus_7d,
+    plus_jacobian_7x6,
+    dR_dq_mats as dR_dq_mats_xyzw,
+    dR_times_v_dq as dR_times_v_dq_xyzw,
+    dRT_times_v_dq as dRT_times_v_dq_xyzw,
+)
 
+damping = 0#1e-6
 # -----------------------------
 # Incidence weighting / grazing-angle handling
 # -----------------------------
@@ -39,141 +53,6 @@ def incidence_weight(c: float) -> float:
     if INCIDENCE_MODE == "sqrtabs":
         return ac ** 0.5
     raise ValueError(INCIDENCE_MODE)
-
-
-def skew(a: np.ndarray) -> np.ndarray:
-    ax, ay, az = a
-    return np.array([[0, -az, ay],
-                     [az, 0, -ax],
-                     [-ay, ax, 0]], dtype=float)
-
-
-# -----------------------------
-# Quaternion (xyzw) + SE(3) manifold (right multiplication)
-# -----------------------------
-
-def quat_normalize_xyzw(q: np.ndarray) -> np.ndarray:
-    n = np.linalg.norm(q)
-    if n < 1e-18:
-        return np.array([0.0, 0.0, 0.0, 1.0])
-    return q / n
-
-
-def quat_mul_xyzw(q: np.ndarray, p: np.ndarray) -> np.ndarray:
-    qv, qs = q[:3], q[3]
-    pv, ps = p[:3], p[3]
-    v = qs * pv + ps * qv + np.cross(qv, pv)
-    s = qs * ps - np.dot(qv, pv)
-    return np.array([v[0], v[1], v[2], s], dtype=float)
-
-
-def quat_to_R_xyzw(q: np.ndarray) -> np.ndarray:
-    q = quat_normalize_xyzw(q)
-    x, y, z, w = q
-    xx, yy, zz = x * x, y * y, z * z
-    xy, xz, yz = x * y, x * z, y * z
-    wx, wy, wz = w * x, w * y, w * z
-    return np.array([
-        [1 - 2 * (yy + zz),     2 * (xy - wz),     2 * (xz + wy)],
-        [    2 * (xy + wz), 1 - 2 * (xx + zz),     2 * (yz - wx)],
-        [    2 * (xz - wy),     2 * (yz + wx), 1 - 2 * (xx + yy)],
-    ], dtype=float)
-
-
-def quat_exp_so3_xyzw(w: np.ndarray) -> np.ndarray:
-    th = np.linalg.norm(w)
-    if th < 1e-12:
-        v = 0.5 * w
-        return quat_normalize_xyzw(np.array([v[0], v[1], v[2], 1.0], dtype=float))
-    axis = w / th
-    half = 0.5 * th
-    s = np.sin(half)
-    v = axis * s
-    return np.array([v[0], v[1], v[2], np.cos(half)], dtype=float)
-
-
-def V_matrix_so3(w: np.ndarray) -> np.ndarray:
-    W = skew(w)
-    th = np.linalg.norm(w)
-    if th < 1e-12:
-        return np.eye(3) + 0.5 * W
-    A = np.sin(th) / th
-    B = (1 - np.cos(th)) / (th * th)
-    C = (1 - A) / (th * th)
-    return np.eye(3) + B * W + C * (W @ W)
-
-
-def se3_plus_7d(x: np.ndarray, delta: np.ndarray) -> np.ndarray:
-    q = quat_normalize_xyzw(x[:4])
-    t = x[4:].copy()
-    v = delta[:3]
-    w = delta[3:]
-
-    dq = quat_exp_so3_xyzw(w)
-    q_plus = quat_normalize_xyzw(quat_mul_xyzw(q, dq))
-
-    R = quat_to_R_xyzw(q)
-    V = V_matrix_so3(w)
-    t_plus = t + R @ (V @ v)
-
-    return np.hstack([q_plus, t_plus])
-
-
-def plus_jacobian_7x6(x: np.ndarray) -> np.ndarray:
-    """
-    P = d Plus(x,delta)/d delta | delta=0, for right-mult Plus.
-    Returns 7x6 (ambient->local mapping via J_local = J_ambient * P).
-    """
-    q = quat_normalize_xyzw(x[:4])
-    vq = q[:3]
-    s = q[3]
-    R = quat_to_R_xyzw(q)
-
-    J = np.zeros((7, 6), dtype=float)
-    dq_dw = np.zeros((4, 3), dtype=float)
-    dq_dw[:3, :] = s * np.eye(3) + skew(vq)
-    dq_dw[3, :] = -vq
-    dq_dw *= 0.5
-
-    J[:4, 3:6] = dq_dw
-    J[4:7, 0:3] = R
-    return J
-
-
-# -----------------------------
-# d(R v)/dq (xyzw)  (no trig)
-# -----------------------------
-
-def dR_dq_mats_xyzw(q: np.ndarray):
-    q = quat_normalize_xyzw(q)
-    x, y, z, w = q
-
-    dRdx = np.array([[0.0,  2*y,  2*z],
-                     [2*y, -4*x, -2*w],
-                     [2*z,  2*w, -4*x]], dtype=float)
-
-    dRdy = np.array([[-4*y, 2*x,  2*w],
-                     [ 2*x, 0.0,  2*z],
-                     [-2*w, 2*z, -4*y]], dtype=float)
-
-    dRdz = np.array([[-4*z, -2*w, 2*x],
-                     [ 2*w, -4*z, 2*y],
-                     [ 2*x,  2*y, 0.0]], dtype=float)
-
-    dRdw = np.array([[0.0, -2*z,  2*y],
-                     [2*z,  0.0, -2*x],
-                     [-2*y, 2*x,  0.0]], dtype=float)
-    return dRdx, dRdy, dRdz, dRdw
-
-
-def dR_times_v_dq_xyzw(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-    dRdx, dRdy, dRdz, dRdw = dR_dq_mats_xyzw(q)
-    return np.column_stack([dRdx @ v, dRdy @ v, dRdz @ v, dRdw @ v])
-
-
-def dRT_times_v_dq_xyzw(q: np.ndarray, v: np.ndarray) -> np.ndarray:
-    dRdx, dRdy, dRdz, dRdw = dR_dq_mats_xyzw(q)
-    return np.column_stack([dRdx.T @ v, dRdy.T @ v, dRdz.T @ v, dRdw.T @ v])
 
 
 # -----------------------------
@@ -397,7 +276,7 @@ def residual_and_jac_rev_two_pose_ambient_direct(xA, xB, pB, qA_pt, nA, dB0):
 # -----------------------------
 
 def solve_inner_one_pose(x, P_S, P_T, corr_fwd, corr_rev, dS0, dT0,
-                         max_iters=12, damping=1e-6,
+                         max_iters=12, damping=damping,
                          step_tol=1e-9, rel_rms_tol=1e-9):
     qT, nT, ok_fwd = corr_fwd
     qS, nS, ok_rev = corr_rev
@@ -445,7 +324,7 @@ def solve_inner_one_pose(x, P_S, P_T, corr_fwd, corr_rev, dS0, dT0,
 
         H = A.T @ A + damping * np.eye(6)
         g = A.T @ b
-        step = np.linalg.solve(H, g)
+        step = np.linalg.lstsq(H, g, rcond=None)[0]
 
         x = se3_plus_7d(x, step)
         x[:4] = quat_normalize_xyzw(x[:4])
@@ -464,7 +343,7 @@ def solve_inner_one_pose(x, P_S, P_T, corr_fwd, corr_rev, dS0, dT0,
 
 
 def solve_inner_two_pose(xA, xB, PA, PB, corr_fwd, corr_rev,
-                         max_iters=12, damping=1e-6,
+                         max_iters=12, damping=damping,
                          step_tol=1e-9, rel_rms_tol=1e-9):
     dA0 = np.array([0.0, 0.0, -1.0])
     dB0 = np.array([0.0, 0.0, -1.0])
@@ -520,7 +399,7 @@ def solve_inner_two_pose(xA, xB, PA, PB, corr_fwd, corr_rev,
 
         H = A.T @ A + damping * np.eye(12)
         g = A.T @ b
-        step = np.linalg.solve(H, g)
+        step = np.linalg.lstsq(H, g, rcond=None)[0]
 
         xA = se3_plus_7d(xA, step[:6]); xA[:4] = quat_normalize_xyzw(xA[:4])
         xB = se3_plus_7d(xB, step[6:]); xB[:4] = quat_normalize_xyzw(xB[:4])

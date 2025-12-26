@@ -16,11 +16,17 @@
 
 ## Roadmap
 
-1. **Jacobians.h** - Point-to-plane Jacobians for the 7D ambient parameterization
-2. **JacobiansTest.cpp** - Validate against Python using finite differences
-3. **ICPAmbient** - Inner loop (linearize, solve) + outer loop (iterate to convergence), matching Python behavior
+1. ~~**JacobiansAmbient.h**~~ - Point-to-plane Jacobians for the 7D ambient parameterization ✓
+2. ~~**JacobiansAmbientTest.cpp**~~ - Validate against Python using finite differences ✓
+3. **ICPSimple** - Inner loop (linearize, solve) + outer loop (iterate to convergence), matching Python behavior
+   - ✓ Inner loop (`solveInner`) - matches Python for translation
+   - ✗ Outer loop - exists but not validated
+   - ✗ Levenberg-Marquardt damping
+   - ✗ Line search
 4. **Ceres integration** - Supply custom SE(3) manifold for the solver
 5. **Single pose first**, then extend to **two-pose** registration
+   - ✓ Single pose inner loop
+   - ✗ Two-pose registration
 
 ## Conventions
 

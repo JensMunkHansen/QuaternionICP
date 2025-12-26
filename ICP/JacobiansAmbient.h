@@ -12,6 +12,7 @@
 
 #include <ICP/SE3.h>
 #include <ICP/ICPParams.h>
+#include <ceres/sized_cost_function.h>
 
 namespace ICP
 {
@@ -42,7 +43,7 @@ class ForwardRayCost;
 // ============================================================================
 
 template<>
-class ForwardRayCost<RayJacobianSimplified>
+class ForwardRayCost<RayJacobianSimplified> : public ceres::SizedCostFunction<1, 7>
 {
 public:
     using policy_tag = RayJacobianSimplified;
@@ -53,9 +54,16 @@ public:
     {
     }
 
-    bool operator()(double const* const* parameters,
-                    double* residuals,
-                    double** jacobians) const
+    static ceres::CostFunction* Create(const Vector3& pS, const Vector3& qT,
+                                       const Vector3& nT, const Vector3& dS0,
+                                       const GeometryWeighting& weighting = GeometryWeighting())
+    {
+        return new ForwardRayCost(pS, qT, nT, dS0, weighting);
+    }
+
+    virtual bool Evaluate(double const* const* parameters,
+                          double* residuals,
+                          double** jacobians) const override
     {
         const double* x = parameters[0];
 
@@ -94,6 +102,14 @@ public:
         return true;
     }
 
+    // Backward compatibility wrapper
+    bool operator()(double const* const* parameters,
+                    double* residuals,
+                    double** jacobians) const
+    {
+        return Evaluate(parameters, residuals, jacobians);
+    }
+
 private:
     Vector3 pS_, qT_, nT_, dS0_;
     GeometryWeighting weighting_;
@@ -104,7 +120,7 @@ private:
 // ============================================================================
 
 template<>
-class ForwardRayCost<RayJacobianConsistent>
+class ForwardRayCost<RayJacobianConsistent> : public ceres::SizedCostFunction<1, 7>
 {
 public:
     using policy_tag = RayJacobianConsistent;
@@ -115,9 +131,16 @@ public:
     {
     }
 
-    bool operator()(double const* const* parameters,
-                    double* residuals,
-                    double** jacobians) const
+    static ceres::CostFunction* Create(const Vector3& pS, const Vector3& qT,
+                                       const Vector3& nT, const Vector3& dS0,
+                                       const GeometryWeighting& weighting = GeometryWeighting())
+    {
+        return new ForwardRayCost(pS, qT, nT, dS0, weighting);
+    }
+
+    virtual bool Evaluate(double const* const* parameters,
+                          double* residuals,
+                          double** jacobians) const override
     {
         const double* x = parameters[0];
 
@@ -159,6 +182,14 @@ public:
         return true;
     }
 
+    // Backward compatibility wrapper
+    bool operator()(double const* const* parameters,
+                    double* residuals,
+                    double** jacobians) const
+    {
+        return Evaluate(parameters, residuals, jacobians);
+    }
+
 private:
     Vector3 pS_, qT_, nT_, dS0_;
     GeometryWeighting weighting_;
@@ -176,7 +207,7 @@ class ReverseRayCost;
 // ============================================================================
 
 template<>
-class ReverseRayCost<RayJacobianSimplified>
+class ReverseRayCost<RayJacobianSimplified> : public ceres::SizedCostFunction<1, 7>
 {
 public:
     using policy_tag = RayJacobianSimplified;
@@ -187,9 +218,16 @@ public:
     {
     }
 
-    bool operator()(double const* const* parameters,
-                    double* residuals,
-                    double** jacobians) const
+    static ceres::CostFunction* Create(const Vector3& pT, const Vector3& qS,
+                                       const Vector3& nS, const Vector3& dT0,
+                                       const GeometryWeighting& weighting = GeometryWeighting())
+    {
+        return new ReverseRayCost(pT, qS, nS, dT0, weighting);
+    }
+
+    virtual bool Evaluate(double const* const* parameters,
+                          double* residuals,
+                          double** jacobians) const override
     {
         const double* x = parameters[0];
 
@@ -229,6 +267,14 @@ public:
         return true;
     }
 
+    // Backward compatibility wrapper
+    bool operator()(double const* const* parameters,
+                    double* residuals,
+                    double** jacobians) const
+    {
+        return Evaluate(parameters, residuals, jacobians);
+    }
+
 private:
     Vector3 pT_, qS_, nS_, dT0_;
     GeometryWeighting weighting_;
@@ -239,7 +285,7 @@ private:
 // ============================================================================
 
 template<>
-class ReverseRayCost<RayJacobianConsistent>
+class ReverseRayCost<RayJacobianConsistent> : public ceres::SizedCostFunction<1, 7>
 {
 public:
     using policy_tag = RayJacobianConsistent;
@@ -250,9 +296,16 @@ public:
     {
     }
 
-    bool operator()(double const* const* parameters,
-                    double* residuals,
-                    double** jacobians) const
+    static ceres::CostFunction* Create(const Vector3& pT, const Vector3& qS,
+                                       const Vector3& nS, const Vector3& dT0,
+                                       const GeometryWeighting& weighting = GeometryWeighting())
+    {
+        return new ReverseRayCost(pT, qS, nS, dT0, weighting);
+    }
+
+    virtual bool Evaluate(double const* const* parameters,
+                          double* residuals,
+                          double** jacobians) const override
     {
         const double* x = parameters[0];
 
@@ -293,6 +346,14 @@ public:
         }
 
         return true;
+    }
+
+    // Backward compatibility wrapper
+    bool operator()(double const* const* parameters,
+                    double* residuals,
+                    double** jacobians) const
+    {
+        return Evaluate(parameters, residuals, jacobians);
     }
 
 private:

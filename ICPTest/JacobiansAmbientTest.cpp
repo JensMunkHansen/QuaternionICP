@@ -401,7 +401,7 @@ TEST_CASE("Ray jacobians for Python comparison", "[jacobians][python]")
 
 TEST_CASE("Simplified jacobian: translation exact, rotation approximate", "[jacobians][fd]")
 {
-    std::mt19937 rng(123);
+    std::mt19937 rng(RandomSeeds::JACOBIAN_SIMPLIFIED_TEST);
     RandomTestSetup setup(rng, 0.5, 0.05);
 
     ForwardRayCostSimplified cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
@@ -447,7 +447,7 @@ TEST_CASE("Simplified jacobian: translation exact, rotation approximate", "[jaco
  */
 TEST_CASE("Sanity test: f(R) = R*p rotation jacobian", "[jacobians][sanity]")
 {
-    std::mt19937 rng(999);
+    std::mt19937 rng(RandomSeeds::JACOBIAN_SANITY_TEST);
 
     ValidationResult validation;
 
@@ -539,7 +539,7 @@ TEST_CASE("Multiple random poses: consistent jacobian", "[jacobians][random]")
 
     for (int seed = 0; seed < numPoses; ++seed)
     {
-        std::mt19937 rng(seed * 1000);
+        std::mt19937 rng(RandomSeeds::JACOBIAN_MULTI_POSE_BASE + seed * 1000);
         RandomTestSetup setup(rng);
 
         ForwardRayCostConsistent cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
@@ -582,7 +582,7 @@ TEST_CASE("Multiple random poses: consistent jacobian", "[jacobians][random]")
  */
 TEST_CASE("Epsilon sweep: simplified vs consistent", "[jacobians][epsilon]")
 {
-    std::mt19937 rng(777);
+    std::mt19937 rng(RandomSeeds::JACOBIAN_EPSILON_TEST);
     RandomTestSetup setup(rng, 0.5, 0.05);
 
     ForwardRayCostConsistent costConsistent(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
@@ -653,7 +653,7 @@ TEST_CASE("Epsilon sweep: simplified vs consistent", "[jacobians][epsilon]")
  */
 TEST_CASE("Policy-based jacobian validation", "[jacobians][policy]")
 {
-    std::mt19937 rng(888);
+    std::mt19937 rng(RandomSeeds::JACOBIAN_POLICY_TEST);
     RandomTestSetup setup(rng);
 
     SECTION("ForwardRayCost<RayJacobianSimplified>")
@@ -690,7 +690,7 @@ TEST_CASE("Policy-based jacobian validation", "[jacobians][policy]")
  */
 TEST_CASE("Reverse consistent jacobian epsilon sweep", "[jacobians][fd][reverse]")
 {
-    std::mt19937 rng(555);
+    std::mt19937 rng(RandomSeeds::JACOBIAN_REVERSE_TEST);
     RandomTestSetup setup(rng, 0.5, 0.05);
 
     ReverseRayCostConsistent cost(setup.pS, setup.qT, setup.nT, setup.dS0, setup.weighting);
@@ -710,7 +710,7 @@ TEST_CASE("Reverse consistent jacobian epsilon sweep", "[jacobians][fd][reverse]
  */
 TEST_CASE("Simplified error equals missing db_dq term", "[jacobians][diagnostic]")
 {
-    std::mt19937 rng(777);
+    std::mt19937 rng(RandomSeeds::JACOBIAN_EPSILON_TEST);
     RandomTestSetup setup(rng, 0.5, 0.05);
 
     // Extract pose

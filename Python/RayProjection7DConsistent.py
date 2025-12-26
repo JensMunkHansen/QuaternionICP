@@ -21,6 +21,8 @@ from se3_utils import (
     plus_jacobian_7x6,
 )
 from jacobians_ambient import AmbientConsistent
+from test_grids import make_heightfield_mesh
+from icp_utils import build_corr_forward, build_corr_reverse
 
 damping = 0  # 1e-6
 
@@ -44,64 +46,6 @@ def incidence_weight(c: float) -> float:
     if INCIDENCE_MODE == "sqrtabs":
         return ac ** 0.5
     raise ValueError(INCIDENCE_MODE)
-
-
-from test_grids import make_heightfield_mesh
-
-
-# -----------------------------
-# Ray casting (LOCAL intersections)
-# -----------------------------
-
-def raycast_one(mesh, origin: np.ndarray, direction: np.ndarray):
-    d = direction / (np.linalg.norm(direction) + 1e-18)
-    loc, idx_ray, idx_tri = mesh.ray.intersects_location(
-        ray_origins=origin[None, :],
-        ray_directions=d[None, :],
-        multiple_hits=False
-    )
-    if len(loc) == 0:
-        return None, None
-    q = loc[0]
-    n = mesh.face_normals[idx_tri[0]]
-    n = n / (np.linalg.norm(n) + 1e-18)
-    return q, n
-
-
-def build_corr_forward(meshT, R, t, P_S, dS0, ray_offset=0.6):
-    d = R @ dS0
-    d = d / (np.linalg.norm(d) + 1e-18)
-    qT = np.zeros((len(P_S), 3))
-    nT = np.zeros((len(P_S), 3))
-    ok = np.zeros((len(P_S),), dtype=bool)
-    for i, pS in enumerate(P_S):
-        xT = R @ pS + t
-        o = xT - ray_offset * d
-        q, n = raycast_one(meshT, o, d)
-        if q is None:
-            continue
-        ok[i] = True
-        qT[i] = q
-        nT[i] = n
-    return qT, nT, ok
-
-
-def build_corr_reverse(meshS, R, t, P_T, dT0, ray_offset=0.6):
-    d = R.T @ dT0
-    d = d / (np.linalg.norm(d) + 1e-18)
-    qS = np.zeros((len(P_T), 3))
-    nS = np.zeros((len(P_T), 3))
-    ok = np.zeros((len(P_T),), dtype=bool)
-    for i, pT in enumerate(P_T):
-        yS = R.T @ (pT - t)
-        o = yS - ray_offset * d
-        q, n = raycast_one(meshS, o, d)
-        if q is None:
-            continue
-        ok[i] = True
-        qS[i] = q
-        nS[i] = n
-    return qS, nS, ok
 
 
 # -----------------------------

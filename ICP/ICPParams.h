@@ -60,4 +60,67 @@ struct GeometryWeighting
     }
 };
 
+/**
+ * Inner solver type.
+ */
+enum class SolverType
+{
+    GaussNewton,         // Gauss-Newton solver (damping = 0)
+    LevenbergMarquardt   // Levenberg-Marquardt solver (adaptive damping)
+};
+
+/**
+ * Line search parameters for inner solver.
+ */
+struct ICPLineSearchParams
+{
+    bool enabled = false;
+    int maxIterations = 10;
+    double alpha = 1.0;      ///< Initial step size
+    double beta = 0.5;       ///< Step reduction factor
+};
+
+/**
+ * Parameters for inner solver (fixed correspondences).
+ */
+struct InnerParams
+{
+    int maxIterations = 12;
+    double stepTol = 1e-9;
+    double damping = 0.0;  // LM damping (0 = Gauss-Newton)
+    bool verbose = false;  // Print per-iteration RMS
+    ICPLineSearchParams lineSearch;
+
+    struct LevenbergMarquardt
+    {
+        double lambda = 1e-3;       ///< Initial damping parameter
+        bool fixedLambda = true;    ///< If true, don't adapt lambda
+        double lambdaUp = 10.0;     ///< Factor to increase lambda on reject
+        double lambdaDown = 0.1;    ///< Factor to decrease lambda on accept
+        double lambdaMin = 1e-10;   ///< Minimum lambda
+        double lambdaMax = 1e10;    ///< Maximum lambda
+    } lm;
+};
+
+/**
+ * Correspondence sampling strategy.
+ */
+enum class SamplingMode
+{
+    Fixed,     // Fixed correspondence set throughout optimization
+    Manual,    // Manually controlled sampling
+    Adaptive   // Adaptive sampling based on convergence
+};
+
+/**
+ * Parameters for outer loop (correspondence updates).
+ */
+struct OuterParams
+{
+    int maxIterations = 6;
+    double convergenceTol = 1e-9;  // Relative RMS change threshold
+    float maxDist = 100.0f;        // Max ray distance for correspondences
+    bool verbose = false;          // Print per-iteration information
+};
+
 } // namespace ICP

@@ -18,25 +18,10 @@
 #include <cmath>
 #include <limits>
 #include <iostream>
+#include <iomanip>
 
 namespace ICP
 {
-
-/// Parameters for inner solver (fixed correspondences)
-struct InnerParams
-{
-    int maxIterations = 12;
-    double stepTol = 1e-9;
-    double damping = 0.0;  // LM damping (0 = Gauss-Newton)
-};
-
-/// Parameters for outer loop (correspondence updates)
-struct OuterParams
-{
-    int maxIterations = 6;
-    double convergenceTol = 1e-9;  // Relative RMS change threshold
-    float maxDist = 100.0f;        // Max ray distance for correspondences
-};
 
 /// Result from inner solver (after iterating to convergence)
 struct InnerSolveResult
@@ -96,7 +81,8 @@ InnerSolveResult solveInner(
         Matrix6 AtA = Matrix6::Zero();
         Vector6 Atb = Vector6::Zero();
         double sum_sq = 0.0;
-        int valid_count = 0;
+        int fwd_valid = 0;
+        int rev_valid = 0;
 
         Matrix7x6 P = plusJacobian7x6(pose);
 
@@ -124,7 +110,7 @@ InnerSolveResult solveInner(
             AtA += J6.transpose() * J6;
             Atb += -J6.transpose() * residual;
             sum_sq += residual * residual;
-            valid_count++;
+            fwd_valid++;
         }
 
         // Process reverse correspondences (target→source)
@@ -151,11 +137,19 @@ InnerSolveResult solveInner(
             AtA += J6.transpose() * J6;
             Atb += -J6.transpose() * residual;
             sum_sq += residual * residual;
-            valid_count++;
+            rev_valid++;
         }
 
+        int valid_count = fwd_valid + rev_valid;
         result.rms = valid_count > 0 ? std::sqrt(sum_sq / valid_count) : 0.0;
         result.valid_count = valid_count;
+
+        if (params.verbose)
+        {
+            std::cout << "\t\t\tinner " << iter << ": rms=" << std::scientific
+                      << std::setprecision(6) << result.rms
+                      << ", fwd_valid=" << fwd_valid << ", rev_valid=" << rev_valid << "\n";
+        }
 
         if (valid_count < 6)
         {
@@ -239,6 +233,13 @@ ICPResult solveICP(
         auto corrs = computeBidirectionalCorrs(
             source, target, rayDir.cast<float>(), srcToTgt, outerParams.maxDist);
 
+        if (outerParams.verbose)
+        {
+            std::cout << "\touter " << outer << ":\n";
+            std::cout << "\t\tfwd_corrs=" << corrs.forward.size()
+                      << ", rev_corrs=" << corrs.reverse.size() << "\n";
+        }
+
         // Inner loop with fixed correspondences
         auto innerResult = solveInner<JacobianPolicy>(
             corrs.forward, corrs.reverse, pose, rayDir, weighting, innerParams);
@@ -246,6 +247,13 @@ ICPResult solveICP(
         pose = innerResult.pose;
         result.rms = innerResult.rms;
         result.total_inner_iterations += innerResult.iterations;
+
+        if (outerParams.verbose)
+        {
+            std::cout << "\t\touter " << outer << ": rms=" << std::scientific
+                      << std::setprecision(6) << result.rms << ", valid=" << innerResult.valid_count
+                      << ", inner_iters=" << innerResult.iterations << "\n";
+        }
 
         // Check convergence based on RMS change across outer iterations
         double rms_change = std::abs(prev_rms - result.rms);
@@ -256,6 +264,11 @@ ICPResult solveICP(
             break;
         }
         prev_rms = result.rms;
+    }
+
+    if (outerParams.verbose)
+    {
+        std::cout << "Total inner iterations: " << result.total_inner_iterations << "\n";
     }
 
     result.pose = pose;

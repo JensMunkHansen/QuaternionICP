@@ -1,4 +1,5 @@
 find_package(Eigen3 REQUIRED)
+find_package(Ceres REQUIRED)
 include(spsArgs)
 find_package(tinyexr REQUIRED)
 find_package(GridSearch REQUIRED)
@@ -17,6 +18,7 @@ target_include_directories(${TARGET_NAME} PUBLIC
 )
 target_link_libraries(${TARGET_NAME} PUBLIC
     Eigen3::Eigen
+    Ceres::ceres
     GridSearch::GridSearch
     tinyexr::tinyexr
     taywee::args

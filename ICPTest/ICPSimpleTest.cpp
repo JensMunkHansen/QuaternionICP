@@ -27,6 +27,8 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
     float diag = std::sqrt(std::pow(vLast.x() - v0.x(), 2) + std::pow(vLast.y() - v0.y(), 2));
     WARN("C++ grid: min=(" << v0.x() << ", " << v0.y() << "), max=(" << vLast.x() << ", " << vLast.y() << ")");
     WARN("C++ XY diagonal: " << diag);
+    WARN("Total vertices: " << source.nRows() * source.nCols());
+    WARN("Triangle vertex indices: " << source.getTriangleVertexIndices().size());
 
     Vector3 rayDir(0, 0, -1);
     float maxDist = 100.0f;
@@ -39,6 +41,30 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
 
         WARN("Forward correspondences: " << corrs.forward.size());
         WARN("Reverse correspondences: " << corrs.reverse.size());
+
+        // Check which source vertices are missing forward correspondences
+        std::vector<bool> hasForwardHit(source.nRows() * source.nCols(), false);
+        for (const auto& corr : corrs.forward) {
+            hasForwardHit[corr.srcVertexIdx] = true;
+        }
+        int missingCount = 0;
+        std::vector<int> missingIndices;
+        for (int i = 0; i < hasForwardHit.size(); ++i) {
+            if (!hasForwardHit[i]) {
+                missingCount++;
+                if (missingIndices.size() < 10) missingIndices.push_back(i);
+            }
+        }
+        WARN("Missing forward hits: " << missingCount << " out of " << hasForwardHit.size());
+        if (!missingIndices.empty()) {
+            std::cout << "\tFirst missing grid positions (row,col): ";
+            for (int idx : missingIndices) {
+                int row = idx / source.nCols();
+                int col = idx % source.nCols();
+                std::cout << "(" << row << "," << col << ") ";
+            }
+            std::cout << "\n";
+        }
 
         auto result = solveInner<RayJacobianSimplified>(
             corrs.forward, corrs.reverse, pose, rayDir, weighting);
@@ -101,6 +127,192 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
             pose = result.pose;
             if (result.rms < 1e-9) break;
         }
+    }
+}
+
+TEST_CASE("solveICP outer loop", "[icp][outer][python]")
+{
+    // Match Python: nx=45, ny=45, spacing=2.0/44
+    float spacing = 2.0f / 44.0f;
+    Grid source = createHeightfieldGrid(45, 45, spacing, spacing);
+    Grid target = source;
+
+    // Match Python: no weighting
+    GeometryWeighting weighting;
+    weighting.enable_weight = false;
+    weighting.enable_gate = false;
+
+    Vector3 rayDir(0, 0, -1);
+
+    InnerParams innerParams;
+    innerParams.maxIterations = 12;
+    innerParams.stepTol = 1e-9;
+    innerParams.damping = 0.0;
+    innerParams.verbose = true;
+
+    OuterParams outerParams;
+    outerParams.maxIterations = 6;
+    outerParams.convergenceTol = 0.0;  // Disable early stopping to run all iterations
+    outerParams.maxDist = 100.0f;
+    outerParams.verbose = true;
+
+    SECTION("Small perturbation")
+    {
+        WARN("\n=== Test 1: Small perturbation ===");
+
+        // Match Python: axis_angle = [0.01, 0.005, -0.008], t = [0.01, -0.005, 0.02]
+        Vector3 axisAngle(0.01, 0.005, -0.008);
+        Pose7 initialPose = rotationPose(axisAngle);
+        initialPose[4] = 0.01;   // tx
+        initialPose[5] = -0.005; // ty
+        initialPose[6] = 0.02;   // tz
+
+        WARN("Initial pose: q=[" << initialPose[0] << ", " << initialPose[1] << ", "
+             << initialPose[2] << ", " << initialPose[3] << "], t=["
+             << initialPose[4] << ", " << initialPose[5] << ", " << initialPose[6] << "]");
+
+        auto result = solveICP<RayJacobianSimplified>(
+            source, target, initialPose, rayDir, weighting, innerParams, outerParams);
+
+        WARN("Final pose: [" << result.pose[0] << ", " << result.pose[1] << ", "
+             << result.pose[2] << ", " << result.pose[3] << ", "
+             << result.pose[4] << ", " << result.pose[5] << ", " << result.pose[6] << "]");
+        WARN("Outer iterations: " << result.outer_iterations);
+        WARN("Total inner iterations: " << result.total_inner_iterations);
+        WARN("Final RMS: " << result.rms);
+
+        // Should converge close to identity
+        CHECK(std::abs(result.pose[0]) < 1e-6);  // qx
+        CHECK(std::abs(result.pose[1]) < 1e-6);  // qy
+        CHECK(std::abs(result.pose[2]) < 1e-6);  // qz
+        CHECK(std::abs(result.pose[3] - 1.0) < 1e-6);  // qw
+        CHECK(std::abs(result.pose[4]) < 1e-6);  // tx
+        CHECK(std::abs(result.pose[5]) < 1e-6);  // ty
+        CHECK(std::abs(result.pose[6]) < 1e-6);  // tz
+    }
+
+    SECTION("Larger perturbation")
+    {
+        WARN("\n=== Test 2: Larger perturbation ===");
+
+        // Match Python: axis_angle = [0.05, 0.02, -0.03], t = [0.05, 0.02, 0.08]
+        Vector3 axisAngle(0.05, 0.02, -0.03);
+        Pose7 initialPose = rotationPose(axisAngle);
+        initialPose[4] = 0.05;  // tx
+        initialPose[5] = 0.02;  // ty
+        initialPose[6] = 0.08;  // tz
+
+        WARN("Initial pose: q=[" << initialPose[0] << ", " << initialPose[1] << ", "
+             << initialPose[2] << ", " << initialPose[3] << "], t=["
+             << initialPose[4] << ", " << initialPose[5] << ", " << initialPose[6] << "]");
+
+        auto result = solveICP<RayJacobianSimplified>(
+            source, target, initialPose, rayDir, weighting, innerParams, outerParams);
+
+        WARN("Final pose: [" << result.pose[0] << ", " << result.pose[1] << ", "
+             << result.pose[2] << ", " << result.pose[3] << ", "
+             << result.pose[4] << ", " << result.pose[5] << ", " << result.pose[6] << "]");
+        WARN("Outer iterations: " << result.outer_iterations);
+        WARN("Total inner iterations: " << result.total_inner_iterations);
+        WARN("Final RMS: " << result.rms);
+
+        // Should converge close to identity
+        CHECK(std::abs(result.pose[0]) < 1e-6);
+        CHECK(std::abs(result.pose[1]) < 1e-6);
+        CHECK(std::abs(result.pose[2]) < 1e-6);
+        CHECK(std::abs(result.pose[3] - 1.0) < 1e-6);
+        CHECK(std::abs(result.pose[4]) < 1e-6);
+        CHECK(std::abs(result.pose[5]) < 1e-6);
+        CHECK(std::abs(result.pose[6]) < 1e-6);
+    }
+
+    SECTION("Translation only")
+    {
+        WARN("\n=== Test 3: Translation only ===");
+
+        // Match Python: q = [0, 0, 0, 1], t = [0.03, -0.02, 0.05]
+        Pose7 initialPose = identityPose();
+        initialPose[4] = 0.03;   // tx
+        initialPose[5] = -0.02;  // ty
+        initialPose[6] = 0.05;   // tz
+
+        WARN("Initial pose: q=[" << initialPose[0] << ", " << initialPose[1] << ", "
+             << initialPose[2] << ", " << initialPose[3] << "], t=["
+             << initialPose[4] << ", " << initialPose[5] << ", " << initialPose[6] << "]");
+
+        // Check correspondences at converged pose (identity)
+        Eigen::Isometry3d identityTransform = Eigen::Isometry3d::Identity();
+        auto convergedCorrs = computeBidirectionalCorrs(source, target, rayDir.cast<float>(), identityTransform, outerParams.maxDist);
+
+        // Also check at the initial perturbed pose
+        Eigen::Isometry3d initialTransform = pose7ToIsometry(initialPose);
+        auto initialCorrs = computeBidirectionalCorrs(source, target, rayDir.cast<float>(), initialTransform, outerParams.maxDist);
+        std::cout << "\tInitial transform translation: [" << initialTransform.translation().transpose() << "]\n";
+        WARN("At initial perturbed pose: forward=" << initialCorrs.forward.size());
+
+        std::vector<bool> hasHit(source.nRows() * source.nCols(), false);
+        for (const auto& corr : convergedCorrs.forward) {
+            hasHit[corr.srcVertexIdx] = true;
+        }
+        int missing = 0;
+        std::vector<int> missingIdx;
+        for (int i = 0; i < hasHit.size(); ++i) {
+            if (!hasHit[i]) {
+                missing++;
+                if (missingIdx.size() < 20) missingIdx.push_back(i);
+            }
+        }
+        WARN("At identity: forward=" << convergedCorrs.forward.size() << ", missing=" << missing);
+        if (!missingIdx.empty()) {
+            std::cout << "\tMissing grid positions (row,col): ";
+            for (int idx : missingIdx) {
+                std::cout << "(" << idx/source.nCols() << "," << idx%source.nCols() << ") ";
+            }
+            std::cout << "\n";
+        }
+
+        auto result = solveICP<RayJacobianSimplified>(
+            source, target, initialPose, rayDir, weighting, innerParams, outerParams);
+
+        WARN("Final pose: [" << result.pose[0] << ", " << result.pose[1] << ", "
+             << result.pose[2] << ", " << result.pose[3] << ", "
+             << result.pose[4] << ", " << result.pose[5] << ", " << result.pose[6] << "]");
+        WARN("Outer iterations: " << result.outer_iterations);
+        WARN("Total inner iterations: " << result.total_inner_iterations);
+        WARN("Final RMS: " << result.rms);
+
+        // Check correspondences at the converged pose
+        Eigen::Isometry3d finalTransform = pose7ToIsometry(result.pose);
+        auto finalCorrs = computeBidirectionalCorrs(source, target, rayDir.cast<float>(), finalTransform, outerParams.maxDist);
+        std::vector<bool> hasFinalHit(source.nRows() * source.nCols(), false);
+        for (const auto& corr : finalCorrs.forward) {
+            hasFinalHit[corr.srcVertexIdx] = true;
+        }
+        int finalMissing = 0;
+        std::vector<int> finalMissingIdx;
+        for (int i = 0; i < hasFinalHit.size(); ++i) {
+            if (!hasFinalHit[i]) {
+                finalMissing++;
+                if (finalMissingIdx.size() < 30) finalMissingIdx.push_back(i);
+            }
+        }
+        WARN("At final converged pose: forward=" << finalCorrs.forward.size() << ", missing=" << finalMissing);
+        if (!finalMissingIdx.empty()) {
+            std::cout << "\tMissing at final pose (row,col): ";
+            for (int idx : finalMissingIdx) {
+                std::cout << "(" << idx/source.nCols() << "," << idx%source.nCols() << ") ";
+            }
+            std::cout << "\n";
+        }
+
+        // Should converge close to identity
+        CHECK(std::abs(result.pose[0]) < 1e-6);
+        CHECK(std::abs(result.pose[1]) < 1e-6);
+        CHECK(std::abs(result.pose[2]) < 1e-6);
+        CHECK(std::abs(result.pose[3] - 1.0) < 1e-6);
+        CHECK(std::abs(result.pose[4]) < 1e-6);
+        CHECK(std::abs(result.pose[5]) < 1e-6);
+        CHECK(std::abs(result.pose[6]) < 1e-6);
     }
 }
 

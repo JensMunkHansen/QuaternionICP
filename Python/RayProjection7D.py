@@ -21,6 +21,8 @@ from se3_utils import (
     plus_jacobian_7x6,
 )
 from jacobians_ambient import Ambient, IncidenceParams
+from test_grids import make_heightfield_mesh
+from icp_utils import build_corr_forward, build_corr_reverse, icp_one_pose
 
 damping = 0#1e-6
 
@@ -31,64 +33,6 @@ INCIDENCE_PARAMS = IncidenceParams(
     tau=0.2,
     mode="sqrtabs"
 )
-
-
-from test_grids import make_heightfield_mesh
-
-
-# -----------------------------
-# Ray casting (LOCAL intersections)
-# -----------------------------
-
-def raycast_one(mesh, origin: np.ndarray, direction: np.ndarray):
-    d = direction / (np.linalg.norm(direction) + 1e-18)
-    loc, idx_ray, idx_tri = mesh.ray.intersects_location(
-        ray_origins=origin[None, :],
-        ray_directions=d[None, :],
-        multiple_hits=False
-    )
-    if len(loc) == 0:
-        return None, None
-    q = loc[0]
-    n = mesh.face_normals[idx_tri[0]]
-    n = n / (np.linalg.norm(n) + 1e-18)
-    return q, n
-
-
-def build_corr_forward(meshT, R, t, P_S, dS0, ray_offset=0.6):
-    d = R @ dS0
-    d = d / (np.linalg.norm(d) + 1e-18)
-    qT = np.zeros((len(P_S), 3))
-    nT = np.zeros((len(P_S), 3))
-    ok = np.zeros((len(P_S),), dtype=bool)
-    for i, pS in enumerate(P_S):
-        xT = R @ pS + t
-        o = xT - ray_offset * d
-        q, n = raycast_one(meshT, o, d)
-        if q is None:
-            continue
-        ok[i] = True
-        qT[i] = q
-        nT[i] = n
-    return qT, nT, ok
-
-
-def build_corr_reverse(meshS, R, t, P_T, dT0, ray_offset=0.6):
-    d = R.T @ dT0
-    d = d / (np.linalg.norm(d) + 1e-18)
-    qS = np.zeros((len(P_T), 3))
-    nS = np.zeros((len(P_T), 3))
-    ok = np.zeros((len(P_T),), dtype=bool)
-    for i, pT in enumerate(P_T):
-        yS = R.T @ (pT - t)
-        o = yS - ray_offset * d
-        q, n = raycast_one(meshS, o, d)
-        if q is None:
-            continue
-        ok[i] = True
-        qS[i] = q
-        nS[i] = n
-    return qS, nS, ok
 
 
 # -----------------------------
@@ -231,42 +175,6 @@ def solve_inner_two_pose(xA, xB, PA, PB, corr_fwd, corr_rev,
     return xA, xB, it + 1
 
 
-def icp_one_pose(meshS, meshT, P_S, P_T, x0, params=INCIDENCE_PARAMS, outer=6, inner=12):
-    dS0 = np.array([0.0, 0.0, -1.0])
-    dT0 = np.array([0.0, 0.0, -1.0])
-
-    x = x0.copy()
-    x[:4] = quat_normalize_xyzw(x[:4])
-
-    total_inner = 0
-    for out in range(outer):
-        R = quat_to_R_xyzw(x[:4]); t = x[4:]
-
-        qT, nT, ok_fwd = build_corr_forward(meshT, R, t, P_S, dS0, ray_offset=0.6)
-        qS, nS, ok_rev = build_corr_reverse(meshS, R, t, P_T, dT0, ray_offset=0.6)
-
-        x, n_inner = solve_inner_one_pose(x, P_S, P_T, (qT, nT, ok_fwd), (qS, nS, ok_rev), dS0, dT0, params=params, max_iters=inner)
-        total_inner += n_inner
-
-        # report weighted rms
-        rs = []
-        for i in range(len(P_S)):
-            if ok_fwd[i]:
-                _, r, J7 = Ambient.residual_and_jac_fwd(x, P_S[i], qT[i], nT[i], dS0, params)
-                if np.any(J7):
-                    rs.append(r)
-        for j in range(len(P_T)):
-            if ok_rev[j]:
-                _, r, J7 = Ambient.residual_and_jac_rev(x, P_T[j], qS[j], nS[j], dT0, params)
-                if np.any(J7):
-                    rs.append(r)
-        rms = np.sqrt(np.mean(np.square(rs))) if len(rs) else np.nan
-        print(f"[one-pose] outer {out:02d}  rms={rms:.6e}  #res={len(rs)}")
-
-    print(f"[one-pose]: nOuter: {outer}, nInner: {total_inner}")
-    return x, total_inner, rms
-
-
 def icp_two_pose(meshA, meshB, PA, PB, xA0, xB0, params=INCIDENCE_PARAMS, outer=6, inner=12):
     dA0 = np.array([0.0, 0.0, -1.0])
     dB0 = np.array([0.0, 0.0, -1.0])
@@ -324,7 +232,7 @@ def main():
     print(f"Incidence settings: {INCIDENCE_PARAMS}")
 
     print("\n--- One-pose ICP ---")
-    x_est, n_inner_1, rms_1 = icp_one_pose(meshS, meshT, P_S, P_T, x0, outer=6, inner=12)
+    x_est, n_inner_1, rms_1 = icp_one_pose(meshS, meshT, P_S, P_T, x0, INCIDENCE_PARAMS, max_outer_iterations=6, inner=12, verbose=True)
     print("Estimated x =", x_est)
 
     print("\n--- Two-pose ICP ---")

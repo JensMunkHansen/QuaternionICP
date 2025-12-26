@@ -11,7 +11,7 @@ using Catch::Matchers::WithinAbs;
 // Tolerance for floating point comparisons
 constexpr double TOL = 1e-10;
 
-TEST_CASE("skew matrix", "[se3]")
+TEST_CASE("skew matrix", "[se3][python]")
 {
     Eigen::Vector3d w(1.0, 2.0, 3.0);
     Eigen::Matrix3d S = skew(w);
@@ -36,7 +36,7 @@ TEST_CASE("skew matrix", "[se3]")
     CHECK((cross_result - expected_cross).norm() < TOL);
 }
 
-TEST_CASE("quatExpSO3", "[se3]")
+TEST_CASE("quatExpSO3", "[se3][python]")
 {
     SECTION("small angle")
     {
@@ -71,7 +71,7 @@ TEST_CASE("quatExpSO3", "[se3]")
     }
 }
 
-TEST_CASE("Eigen quaternion to rotation matrix", "[se3]")
+TEST_CASE("Eigen quaternion to rotation matrix", "[se3][python]")
 {
     Eigen::Vector4d q_unnorm(0.1, 0.2, 0.3, 0.9);
     q_unnorm.normalize();
@@ -90,7 +90,7 @@ TEST_CASE("Eigen quaternion to rotation matrix", "[se3]")
     CHECK((R * R.transpose() - Eigen::Matrix3d::Identity()).norm() < TOL);
 }
 
-TEST_CASE("Vso3 left Jacobian", "[se3]")
+TEST_CASE("Vso3 left Jacobian", "[se3][python]")
 {
     SECTION("larger angle")
     {
@@ -108,7 +108,7 @@ TEST_CASE("Vso3 left Jacobian", "[se3]")
     }
 }
 
-TEST_CASE("se3Plus", "[se3]")
+TEST_CASE("se3Plus", "[se3][python]")
 {
     // Same initial pose as Python test
     Eigen::Vector3d w0(0.02, 0.01, -0.03);
@@ -137,7 +137,7 @@ TEST_CASE("se3Plus", "[se3]")
     CHECK_THAT(qnorm, WithinAbs(1.0, TOL));
 }
 
-TEST_CASE("plusJacobian7x6", "[se3]")
+TEST_CASE("plusJacobian7x6", "[se3][python]")
 {
     // Same initial pose as Python test
     Eigen::Vector3d w0(0.02, 0.01, -0.03);
@@ -161,7 +161,7 @@ TEST_CASE("plusJacobian7x6", "[se3]")
     CHECK(P.cols() == 6);
 }
 
-TEST_CASE("dRv_dq and dRTv_dq", "[se3]")
+TEST_CASE("dRv_dq and dRTv_dq", "[se3][python]")
 {
     // Same quaternion as Python test
     Eigen::Vector4d q_unnorm(0.1, 0.2, 0.3, 0.9);

@@ -4,6 +4,9 @@
 
 - Python virtual environment: `source ~/Environments/py313/bin/activate`
 - CMake preset: `linux-gcc`
+- Configure: `cmake --preset linux-gcc`
+- Build: `cmake --build build/linux-gcc`
+- Test: `ctest --test-dir build/linux-gcc -C Debug`
 
 ## Roadmap
 

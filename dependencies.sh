@@ -5,36 +5,77 @@ set -e
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Detect platform and compiler (use CMake-style capitalized platform names)
-PLATFORM="$(uname -s)"  # Linux, Darwin, Windows
-COMPILER="${CC:-gcc}"
-COMPILER_NAME="${COMPILER##*/}"  # Extract basename
+# Default compiler
+COMPILER_CHOICE="gcc"
+KEEP_BUILD=false
 
-INSTALL_DIR="${SCRIPT_DIR}/${PLATFORM}/${COMPILER_NAME}/install"
-BUILD_DIR="${SCRIPT_DIR}/${PLATFORM}/${COMPILER_NAME}/build"
+# Parse arguments
+CMAKE_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --compiler)
+            COMPILER_CHOICE="$2"
+            shift 2
+            ;;
+        --compiler=*)
+            COMPILER_CHOICE="${1#*=}"
+            shift
+            ;;
+        --keep-build)
+            KEEP_BUILD=true
+            shift
+            ;;
+        *)
+            CMAKE_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Set compiler based on choice
+case "$COMPILER_CHOICE" in
+    gcc)
+        CC_COMPILER="gcc"
+        CXX_COMPILER="g++"
+        ;;
+    clang)
+        CC_COMPILER="clang"
+        CXX_COMPILER="clang++"
+        ;;
+    *)
+        echo "ERROR: Unknown compiler '$COMPILER_CHOICE'. Use 'gcc' or 'clang'."
+        exit 1
+        ;;
+esac
+
+# Detect platform (use CMake-style capitalized platform names)
+PLATFORM="$(uname -s)"  # Linux, Darwin, Windows
+
+INSTALL_DIR="${SCRIPT_DIR}/${PLATFORM}/${COMPILER_CHOICE}/install"
+BUILD_DIR="${SCRIPT_DIR}/${PLATFORM}/${COMPILER_CHOICE}/build"
 
 echo "=============================================="
 echo "MultiRegistration Dependencies Builder"
 echo "=============================================="
 
 # Check for Intel oneAPI if MKL or TBB requested
-if [[ "$*" == *"USE_MKL=ON"* ]] || [[ "$*" == *"USE_TBB=ON"* ]]; then
-  if [ -z "$MKLROOT" ] || [ -z "$TBBROOT" ]; then
-    echo ""
-    echo "ERROR: MKL or TBB requested but oneAPI environment not set."
-    echo "Please run first:"
-    echo "  source /opt/intel/oneapi/setvars.sh"
-    echo ""
-    exit 1
-  fi
-  echo "Intel oneAPI detected:"
-  echo "  MKLROOT: $MKLROOT"
-  echo "  TBBROOT: $TBBROOT"
+if [[ "${CMAKE_ARGS[*]}" == *"USE_MKL=ON"* ]] || [[ "${CMAKE_ARGS[*]}" == *"USE_TBB=ON"* ]]; then
+    if [ -z "$MKLROOT" ] || [ -z "$TBBROOT" ]; then
+        echo ""
+        echo "ERROR: MKL or TBB requested but oneAPI environment not set."
+        echo "Please run first:"
+        echo "  source /opt/intel/oneapi/setvars.sh"
+        echo ""
+        exit 1
+    fi
+    echo "Intel oneAPI detected:"
+    echo "  MKLROOT: $MKLROOT"
+    echo "  TBBROOT: $TBBROOT"
 fi
 
 echo ""
 echo "Platform:          $PLATFORM"
-echo "Compiler:          $COMPILER_NAME"
+echo "Compiler:          $COMPILER_CHOICE ($CC_COMPILER / $CXX_COMPILER)"
 echo "Install directory: $INSTALL_DIR"
 echo "Build directory:   $BUILD_DIR"
 echo ""
@@ -47,8 +88,8 @@ echo "Configuring dependencies..."
 cmake -S "$SCRIPT_DIR/NativeDeps" -B "$BUILD_DIR" \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER="${COMPILER}" \
-    -DCMAKE_CXX_COMPILER="${CXX:-g++}" \
+    -DCMAKE_C_COMPILER="${CC_COMPILER}" \
+    -DCMAKE_CXX_COMPILER="${CXX_COMPILER}" \
     -DBUILD_EIGEN3=ON \
     -DBUILD_CATCH2=ON \
     -DBUILD_ABSEIL=ON \
@@ -60,12 +101,20 @@ cmake -S "$SCRIPT_DIR/NativeDeps" -B "$BUILD_DIR" \
     -DBUILD_SIMDMATH=ON \
     -DBUILD_GRIDSEARCH=ON \
     -DDEPS_VERBOSE=OFF \
-    "$@"
+    "${CMAKE_ARGS[@]}"
 
 # Build all dependencies
 echo ""
 echo "Building dependencies (this may take a while)..."
 cmake --build "$BUILD_DIR" --config Release --parallel
+
+# Clean up build directory to save space
+if [ "$KEEP_BUILD" = "false" ]; then
+    echo ""
+    echo "Cleaning up build directory: $BUILD_DIR"
+    rm -rf "$BUILD_DIR"
+    echo "Build directory removed."
+fi
 
 echo ""
 echo "=============================================="
@@ -73,15 +122,17 @@ echo "Dependencies installed successfully!"
 echo "=============================================="
 echo ""
 echo "To use these dependencies, configure MultiViewICP with:"
-echo "  cmake --preset linux-gcc"
+echo "  cmake --preset linux-${COMPILER_CHOICE}"
 echo ""
-echo "Usage examples:"
-echo "  CC=gcc CXX=g++ ./dependencies.sh           # GCC build (default)"
-echo "  CC=clang CXX=clang++ ./dependencies.sh     # Clang build"
+echo "Usage:"
+echo "  ./dependencies.sh                      # GCC build (default)"
+echo "  ./dependencies.sh --compiler=clang     # Clang build"
+echo "  ./dependencies.sh --compiler=gcc       # GCC build (explicit)"
+echo "  ./dependencies.sh --keep-build         # Keep build directory"
 echo ""
-echo "Optional flags for this script:"
-echo "  -DUSE_MKL=ON        Enable Intel MKL (requires: source setvars.sh)"
-echo "  -DUSE_TBB=ON        Enable TBB threading (requires: source setvars.sh)"
-echo "  -DUSE_CUDA=ON       Enable CUDA support"
+echo "Optional CMake flags:"
+echo "  -DUSE_MKL=ON         Enable Intel MKL (requires: source setvars.sh)"
+echo "  -DUSE_TBB=ON         Enable TBB threading (requires: source setvars.sh)"
+echo "  -DUSE_CUDA=ON        Enable CUDA support"
 echo "  -DUSE_SUITESPARSE=ON Enable SuiteSparse"
-echo "  -DDEPS_VERBOSE=ON   Show build output"
+echo "  -DDEPS_VERBOSE=ON    Show build output"

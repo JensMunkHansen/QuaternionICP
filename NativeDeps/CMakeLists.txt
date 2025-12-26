@@ -48,6 +48,7 @@ sps_get_version(ARGS_VERSION "6.4.7")
 sps_get_version(MINIZ_VERSION "3.0.2")
 sps_get_version(TINYEXR_VERSION "v1.0.9")
 sps_get_version(GRIDSEARCH_VERSION "v1.0.0")
+sps_get_version(SIMDMATH_VERSION "v1.2.0")
 sps_get_version(CATCH2_VERSION "3.5.2")
 
 # Build options
@@ -363,7 +364,7 @@ endif()
 if (BUILD_SIMDMATH)
   ExternalProject_Add(simdmath
     GIT_REPOSITORY git@github.com:JensMunkHansen/SIMDMath.git
-    GIT_TAG        v1.1.0
+    GIT_TAG        ${SIMDMATH_VERSION}
     GIT_SHALLOW    FALSE
     UPDATE_COMMAND ""
     CMAKE_ARGS
@@ -386,6 +387,7 @@ if (BUILD_GRIDSEARCH)
       ${COMMON_CMAKE_ARGS}
       -DBUILD_TESTING=OFF
       -DSIMDMath_DIR=${CMAKE_INSTALL_PREFIX}
+      -DGRIDSEARCH_EXHAUSTIVE_SEARCH=ON
     LOG_BUILD ${EP_LOG_LEVEL}
     LOG_CONFIGURE ${EP_LOG_LEVEL}
     LOG_INSTALL ${EP_LOG_LEVEL}

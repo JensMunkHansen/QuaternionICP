@@ -16,17 +16,34 @@
 
 ## Roadmap
 
+### Completed
 1. ~~**JacobiansAmbient.h**~~ - Point-to-plane Jacobians for the 7D ambient parameterization ✓
 2. ~~**JacobiansAmbientTest.cpp**~~ - Validate against Python using finite differences ✓
-3. **ICPSimple** - Inner loop (linearize, solve) + outer loop (iterate to convergence), matching Python behavior
-   - ✓ Inner loop (`solveInner`) - matches Python for translation
-   - ✗ Outer loop - exists but not validated
-   - ✗ Levenberg-Marquardt damping
-   - ✗ Line search
-4. **Ceres integration** - Supply custom SE(3) manifold for the solver
-5. **Single pose first**, then extend to **two-pose** registration
-   - ✓ Single pose inner loop
-   - ✗ Two-pose registration
+3. ~~**ICPSimple**~~ - Inner loop + outer loop, LM damping, line search ✓
+4. ~~**Ceres integration (single-pose)**~~ - Custom SE(3) manifold for solver ✓
+5. ~~**Two-pose Jacobians**~~ - `JacobiansAmbientTwoPose.h` with consistent/simplified variants ✓
+   - ✓ Forward and reverse ray cost functions
+   - ✓ FD validation with epsilon sweep
+
+### In Progress
+6. **MultiICP Infrastructure**
+   - ✗ AABB boxes for grids (bounding volume)
+   - ✗ Compute potential edges using AABB overlap
+   - ✗ Load EXR files and test two-file registration with SingleICP
+
+7. **Code Refactoring**
+   - ✗ Move random noise utilities out of SingleICP main (share with MultiICP)
+   - ✗ Grid struct: add initial pose (`Pose7`) and running pose for multiview
+
+8. **Ceres Two-Pose Integration**
+   - ✗ Implement Ceres problem using `<1,7,7>` cost functions
+   - ✗ Reuse `InnerParams`, extend `OuterParams` (add `SCHUR_ITERATIVE`)
+
+### Testing & Validation
+9. **MultiICP Testing**
+   - ✗ Test multiview with 2 grids against SingleICP reference
+   - ✗ Test with collection of up to 5000 grids
+   - ✗ Performance optimization
 
 ## Conventions
 

@@ -24,6 +24,7 @@ include(spsEigen)
 option(BUILD_TESTING "Build tests" ON)
 add_subdirectory(ICP)
 add_subdirectory(SingleICP)
+add_subdirectory(MultiICP)
 
 if(BUILD_TESTING)
     include(spsTesting)

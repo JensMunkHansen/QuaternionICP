@@ -118,8 +118,8 @@ struct CommonOptions
     double incidenceTau = 0.2;
 
     // Subsampling
-    int subsampleX = 1;
-    int subsampleY = 1;
+    int subsampleX = 4;
+    int subsampleY = 4;
 
     // Output
     bool verbose = false;

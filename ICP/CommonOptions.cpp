@@ -147,9 +147,9 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::ValueFlag<double> incidenceTau(parser, "tau", "Incidence tau threshold (default: 0.2)", {"incidence-tau"});
 
     // Subsampling
-    args::ValueFlag<int> subsampleX(parser, "N", "Subsample X stride (default: 1)", {"subsample-x"});
-    args::ValueFlag<int> subsampleY(parser, "N", "Subsample Y stride (default: 1)", {"subsample-y"});
-    args::ValueFlag<int> subsample(parser, "N", "Subsample both X and Y (default: 1)", {"subsample"});
+    args::ValueFlag<int> subsampleX(parser, "N", "Subsample X stride (default: 4)", {"subsample-x"});
+    args::ValueFlag<int> subsampleY(parser, "N", "Subsample Y stride (default: 4)", {"subsample-y"});
+    args::ValueFlag<int> subsample(parser, "N", "Subsample both X and Y (default: 4)", {"subsample"});
 
     // Session options
     args::Flag useGridPoses(parser, "use-grid-poses",

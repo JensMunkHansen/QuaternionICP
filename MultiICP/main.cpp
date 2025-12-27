@@ -107,6 +107,19 @@ int main(int argc, char** argv)
             case ceres::ITERATIVE_SCHUR: std::cout << "ITERATIVE_SCHUR"; break;
             default: std::cout << "other"; break;
         }
+        if (params.ceresOptions.linearSolverType == ceres::ITERATIVE_SCHUR)
+        {
+            std::cout << " (preconditioner: ";
+            switch (params.ceresOptions.preconditionerType)
+            {
+                case ceres::IDENTITY: std::cout << "IDENTITY"; break;
+                case ceres::JACOBI: std::cout << "JACOBI"; break;
+                case ceres::SCHUR_JACOBI: std::cout << "SCHUR_JACOBI"; break;
+                case ceres::SCHUR_POWER_SERIES_EXPANSION: std::cout << "SCHUR_POWER_SERIES_EXPANSION"; break;
+                default: std::cout << "other"; break;
+            }
+            std::cout << ")";
+        }
         std::cout << "\n";
 
         // Run multi-view ICP

@@ -50,10 +50,18 @@ class AmbientConsistent:
     """
     Fully consistent quotient-rule Jacobians.
     dr = (b*da - a*db) / b^2
+
+    NOTE: Weighting is applied inside these methods, returning (True, w*r, w*J7).
+    This is not strictly consistent since we assume w is independent of pose
+    (i.e., dw/dq = 0). We do this to match C++ Ceres implementation which
+    multiplies weights inside the cost function.
+
+    Methods return (True, w*r, w*J7) where w is the incidence weight.
+    If w=0 (grazing angle), J7 will be zeros.
     """
 
     @staticmethod
-    def residual_and_jac_fwd(x, pS, qT, nT, dS0):
+    def residual_and_jac_fwd(x, pS, qT, nT, dS0, params: IncidenceParams):
         """
         One-pose forward residual and Jacobian.
 
@@ -63,11 +71,10 @@ class AmbientConsistent:
             qT: target surface point (3,)
             nT: target surface normal (3,)
             dS0: ray direction in source frame (3,)
+            params: incidence weighting parameters
 
         Returns:
-            r: scalar residual
-            J7: 1x7 ambient Jacobian
-            b: denominator (n^T d), for incidence weighting
+            (True, w*r, w*J7) where w is incidence weight
         """
         q = quat_normalize_xyzw(x[:4])
         t = x[4:]
@@ -78,6 +85,11 @@ class AmbientConsistent:
 
         a = float(nT @ (xT - qT))
         b = float(nT @ d)
+        r = a / b
+
+        w = incidence_weight(b, params)
+        if w == 0.0:
+            return True, r, np.zeros(7)
 
         # dr/dt: db/dt = 0 since d = R @ dS0 doesn't depend on t
         dr_dt = nT / b
@@ -88,10 +100,10 @@ class AmbientConsistent:
         dr_dq = (da_dq * b - a * db_dq) / (b * b)
 
         J7 = np.hstack([dr_dq, dr_dt])
-        return a / b, J7, b
+        return True, w * r, w * J7
 
     @staticmethod
-    def residual_and_jac_rev(x, pT, qS, nS, dT0):
+    def residual_and_jac_rev(x, pT, qS, nS, dT0, params: IncidenceParams):
         """
         One-pose reverse residual and Jacobian.
 
@@ -101,11 +113,10 @@ class AmbientConsistent:
             qS: source surface point (3,)
             nS: source surface normal (3,)
             dT0: ray direction in target frame (3,)
+            params: incidence weighting parameters
 
         Returns:
-            r: scalar residual
-            J7: 1x7 ambient Jacobian
-            b: denominator (n^T d), for incidence weighting
+            (True, w*r, w*J7) where w is incidence weight
         """
         q = quat_normalize_xyzw(x[:4])
         t = x[4:]
@@ -117,6 +128,11 @@ class AmbientConsistent:
 
         a = float(nS @ (yS - qS))
         b = float(nS @ d)
+        r = a / b
+
+        w = incidence_weight(b, params)
+        if w == 0.0:
+            return True, r, np.zeros(7)
 
         # dr/dt
         dr_dt = (nS @ (-R.T)) / b
@@ -127,10 +143,10 @@ class AmbientConsistent:
         dr_dq = (da_dq * b - a * db_dq) / (b * b)
 
         J7 = np.hstack([dr_dq, dr_dt])
-        return a / b, J7, b
+        return True, w * r, w * J7
 
     @staticmethod
-    def residual_and_jac_fwd_two_pose(xA, xB, pA, qB_pt, nB, dA0):
+    def residual_and_jac_fwd_two_pose(xA, xB, pA, qB_pt, nB, dA0, params: IncidenceParams):
         """
         Two-pose forward residual and Jacobians (A -> B).
 
@@ -141,12 +157,10 @@ class AmbientConsistent:
             qB_pt: target surface point in B (3,)
             nB: target surface normal in B (3,)
             dA0: ray direction in frame A (3,)
+            params: incidence weighting parameters
 
         Returns:
-            r: scalar residual
-            J7A: 1x7 ambient Jacobian w.r.t. xA
-            J7B: 1x7 ambient Jacobian w.r.t. xB
-            b: denominator (n^T d), for incidence weighting
+            (True, w*r, w*J7A, w*J7B) where w is incidence weight
         """
         qA = quat_normalize_xyzw(xA[:4]); tA = xA[4:]; RA = quat_to_R_xyzw(qA)
         qB = quat_normalize_xyzw(xB[:4]); tB = xB[4:]; RB = quat_to_R_xyzw(qB)
@@ -158,6 +172,11 @@ class AmbientConsistent:
 
         a = float(nB @ (xBv - qB_pt))
         b = float(nB @ d)
+        r = a / b
+
+        w = incidence_weight(b, params)
+        if w == 0.0:
+            return True, r, np.zeros(7), np.zeros(7)
 
         # A block
         da_dtA = nB @ RB.T
@@ -187,10 +206,10 @@ class AmbientConsistent:
         dr_dtB = (da_dtB * b - a * db_dtB) / (b * b)
         J7B = np.hstack([dr_dqB, dr_dtB])
 
-        return a / b, J7A, J7B, b
+        return True, w * r, w * J7A, w * J7B
 
     @staticmethod
-    def residual_and_jac_rev_two_pose(xA, xB, pB, qA_pt, nA, dB0):
+    def residual_and_jac_rev_two_pose(xA, xB, pB, qA_pt, nA, dB0, params: IncidenceParams):
         """
         Two-pose reverse residual and Jacobians (B -> A).
 
@@ -201,12 +220,10 @@ class AmbientConsistent:
             qA_pt: target surface point in A (3,)
             nA: target surface normal in A (3,)
             dB0: ray direction in frame B (3,)
+            params: incidence weighting parameters
 
         Returns:
-            r: scalar residual
-            J7A: 1x7 ambient Jacobian w.r.t. xA
-            J7B: 1x7 ambient Jacobian w.r.t. xB
-            b: denominator (n^T d), for incidence weighting
+            (True, w*r, w*J7A, w*J7B) where w is incidence weight
         """
         qA = quat_normalize_xyzw(xA[:4]); tA = xA[4:]; RA = quat_to_R_xyzw(qA)
         qB = quat_normalize_xyzw(xB[:4]); tB = xB[4:]; RB = quat_to_R_xyzw(qB)
@@ -218,6 +235,11 @@ class AmbientConsistent:
 
         a = float(nA @ (xAv - qA_pt))
         b = float(nA @ d)
+        r = a / b
+
+        w = incidence_weight(b, params)
+        if w == 0.0:
+            return True, r, np.zeros(7), np.zeros(7)
 
         # B block
         da_dtB = nA @ RA.T
@@ -247,7 +269,7 @@ class AmbientConsistent:
         dr_dtA = (da_dtA * b - a * db_dtA) / (b * b)
         J7A = np.hstack([dr_dqA, dr_dtA])
 
-        return a / b, J7A, J7B, b
+        return True, w * r, w * J7A, w * J7B
 
 
 class Ambient:
@@ -273,7 +295,7 @@ class Ambient:
             params: incidence weighting parameters
 
         Returns:
-            (True, r, w*J7) where w is incidence weight
+            (True, w*r, w*J7) where w is incidence weight
         """
         q = quat_normalize_xyzw(x[:4])
         t = x[4:]
@@ -314,7 +336,7 @@ class Ambient:
             params: incidence weighting parameters
 
         Returns:
-            (True, r, w*J7) where w is incidence weight
+            (True, w*r, w*J7) where w is incidence weight
         """
         q = quat_normalize_xyzw(x[:4])
         t = x[4:]

@@ -23,7 +23,7 @@ VERIFY_MODE=false
 for arg in "$@"; do
     case $arg in
         --fix) FIX_MODE=true ;;
-        --verify) VERIFY_MODE=true; FIX_MODE=true ;;
+        --verify) VERIFY_MODE=true; FIX_MODE=false ;;
     esac
 done
 

@@ -241,8 +241,8 @@ struct ICPSessionParams
     /// If false, start from identity (or user-supplied initial pose)
     bool useGridPoses = false;
 
-    /// For two-pose solver: hold first pose fixed (removes gauge freedom)
-    bool fixPoseA = false;
+    /// For multi-pose solver: hold first pose fixed (removes gauge freedom)
+    bool fixFirstPose = false;
 
     /// Verbose output for session-level operations
     bool verbose = false;
@@ -263,6 +263,7 @@ struct CeresICPOptions
     double maxTrustRegionRadius = 1e8;
 
     ceres::LinearSolverType linearSolverType = ceres::DENSE_QR;
+    ceres::PreconditionerType preconditionerType = ceres::SCHUR_JACOBI;  // For ITERATIVE_SCHUR
 
     bool verbose = false;
     bool silent = false;  // Suppress all output

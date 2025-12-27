@@ -1,5 +1,8 @@
 // Standard C++ headers
 #include <iostream>
+#include <regex>
+#include <set>
+#include <sstream>
 
 // Internal headers
 #include <ICP/CommonOptions.h>
@@ -7,6 +10,51 @@
 
 namespace ICP
 {
+
+/**
+ * Parse grid indices from a string.
+ * Supports: "0,1,3" or "0-9" or "0-5,10,15-20" or "" (empty = all)
+ * Returns sorted, deduplicated indices.
+ */
+std::vector<int> parseGridIndices(const std::string& str)
+{
+    std::set<int> indices;
+    if (str.empty())
+    {
+        return {};  // Empty means load all
+    }
+
+    std::stringstream ss(str);
+    std::string token;
+
+    while (std::getline(ss, token, ','))
+    {
+        // Trim whitespace
+        size_t start = token.find_first_not_of(" \t");
+        size_t end = token.find_last_not_of(" \t");
+        if (start == std::string::npos)
+            continue;
+        token = token.substr(start, end - start + 1);
+
+        // Check for range (e.g., "0-5")
+        size_t dashPos = token.find('-');
+        if (dashPos != std::string::npos && dashPos > 0)
+        {
+            int rangeStart = std::stoi(token.substr(0, dashPos));
+            int rangeEnd = std::stoi(token.substr(dashPos + 1));
+            for (int i = rangeStart; i <= rangeEnd; ++i)
+            {
+                indices.insert(i);
+            }
+        }
+        else
+        {
+            indices.insert(std::stoi(token));
+        }
+    }
+
+    return std::vector<int>(indices.begin(), indices.end());
+}
 
 bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& programDesc)
 {
@@ -25,6 +73,10 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::Flag test_flag(parser, "test", "Use synthetic test grids", {"test"});
     args::ValueFlag<std::string> source_flag(parser, "path", "Source EXR file", {"source"});
     args::ValueFlag<std::string> target_flag(parser, "path", "Target EXR file", {"target"});
+
+    // Multi-grid mode
+    args::ValueFlag<std::string> grid_folder(parser, "path", "Folder containing EXR files", {'g', "grid-folder"});
+    args::ValueFlag<std::string> grid_indices(parser, "indices", "Grid indices: 0,1,3 or 0-9 or 0-5,10 (empty=all)", {"indices"});
 
     // Grid type
     args::MapFlag<std::string, CommonOptions::GridType> gridtype_flag(parser, "type",
@@ -66,6 +118,15 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
          {"lm", CommonOptions::Solver::LevenbergMarquardt}},
         CommonOptions::Solver::GaussNewton);
 
+    // Linear solver type for Ceres
+    args::MapFlag<std::string, CommonOptions::LinearSolver> linear_solver_flag(parser, "linear-solver",
+        "Linear solver type for Ceres", {"linear-solver"},
+        {{"dense-qr", CommonOptions::LinearSolver::DenseQR},
+         {"dense-schur", CommonOptions::LinearSolver::DenseSchur},
+         {"sparse-schur", CommonOptions::LinearSolver::SparseSchur},
+         {"iterative-schur", CommonOptions::LinearSolver::IterativeSchur}},
+        CommonOptions::LinearSolver::DenseQR);
+
     // Line search parameters
     args::Flag lineSearchFlag(parser, "line-search", "Enable line search", {"line-search"});
     args::ValueFlag<int> lsMaxIter(parser, "int", "Line search max iterations (default: 10)", {"ls-max-iter"});
@@ -93,8 +154,8 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     // Session options
     args::Flag useGridPoses(parser, "use-grid-poses",
         "Compute initial alignment from grid poses (T_source * T_target^-1)", {"use-grid-poses"});
-    args::Flag fixPoseA(parser, "fix-pose-a",
-        "For two-pose solver: hold first pose fixed", {"fix-pose-a"});
+    args::Flag fixFirstPose(parser, "fix-first-pose",
+        "For multi-pose solver: hold first pose fixed", {"fix-first-pose"});
 
     // Verbose
     args::Flag verbose(parser, "verbose", "Verbose output", {'v', "verbose"});
@@ -121,23 +182,36 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     // Grid type selection
     if (gridtype_flag) opts.gridType = args::get(gridtype_flag);
 
-    // Validate mode: either --test or both --source and --target
+    // Validate mode: --test, --source/--target pair, or --grid-folder
     opts.useTestGrid = test_flag;
 
     if (opts.useTestGrid)
     {
         // Test mode: source and target files not needed
+        if (source_flag || target_flag || grid_folder)
+        {
+            std::cerr << "Warning: --source/--target/--grid-folder ignored in --test mode\n";
+        }
+    }
+    else if (grid_folder)
+    {
+        // Multi-grid mode: load from folder
+        opts.gridFolder = args::get(grid_folder);
+        if (grid_indices)
+        {
+            opts.gridIndices = parseGridIndices(args::get(grid_indices));
+        }
         if (source_flag || target_flag)
         {
-            std::cerr << "Warning: --source and --target ignored in --test mode\n";
+            std::cerr << "Warning: --source and --target ignored in --grid-folder mode\n";
         }
     }
     else
     {
-        // File mode: both source and target required
+        // Two-file mode: both source and target required
         if (!source_flag || !target_flag)
         {
-            std::cerr << "Error: --source and --target required (or use --test for synthetic grids)\n";
+            std::cerr << "Error: --source and --target required (or use --test or --grid-folder)\n";
             std::cerr << parser;
             return false;
         }
@@ -168,6 +242,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 
     // Solver type
     if (solver_flag) opts.solver = args::get(solver_flag);
+    if (linear_solver_flag) opts.linearSolver = args::get(linear_solver_flag);
 
     // Line search parameters
     opts.lineSearch.enabled = lineSearchFlag;
@@ -197,7 +272,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 
     opts.verbose = verbose;
     opts.useGridPoses = useGridPoses;
-    opts.fixPoseA = fixPoseA;
+    opts.fixFirstPose = fixFirstPose;
 
     return true;
 }
@@ -276,6 +351,24 @@ CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts)
         ceresOpts.maxTrustRegionRadius = 1e32;
     }
 
+    // Linear solver type
+    switch (opts.linearSolver)
+    {
+        case CommonOptions::LinearSolver::DenseQR:
+            ceresOpts.linearSolverType = ceres::DENSE_QR;
+            break;
+        case CommonOptions::LinearSolver::DenseSchur:
+            ceresOpts.linearSolverType = ceres::DENSE_SCHUR;
+            break;
+        case CommonOptions::LinearSolver::SparseSchur:
+            ceresOpts.linearSolverType = ceres::SPARSE_SCHUR;
+            break;
+        case CommonOptions::LinearSolver::IterativeSchur:
+            ceresOpts.linearSolverType = ceres::ITERATIVE_SCHUR;
+            ceresOpts.preconditionerType = ceres::SCHUR_JACOBI;
+            break;
+    }
+
     ceresOpts.verbose = opts.verbose;
     ceresOpts.silent = !opts.verbose;
 
@@ -289,7 +382,7 @@ ICPSessionParams commonOptionsToSessionParams(const CommonOptions& opts)
                          ? SolverBackend::Ceres
                          : SolverBackend::HandRolled;
     params.useGridPoses = opts.useGridPoses;
-    params.fixPoseA = opts.fixPoseA;
+    params.fixFirstPose = opts.fixFirstPose;
     params.verbose = opts.verbose;
     return params;
 }

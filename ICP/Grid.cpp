@@ -370,6 +370,11 @@ void Grid::perturbPose(double rotationDeg, double translationUnits, unsigned int
 
 Grid::AABB Grid::computeWorldAABB() const
 {
+    return computeWorldAABB(pose);
+}
+
+Grid::AABB Grid::computeWorldAABB(const Eigen::Isometry3d& worldPose) const
+{
     AABB aabb;
 
     // Iterate over valid vertices only
@@ -384,7 +389,7 @@ Grid::AABB Grid::computeWorldAABB() const
         Eigen::Vector3f localPt = getVertex(i);
 
         // Transform to world coordinates
-        Eigen::Vector3f worldPt = (pose * localPt.cast<double>()).cast<float>();
+        Eigen::Vector3f worldPt = (worldPose * localPt.cast<double>()).cast<float>();
 
         aabb.expand(worldPt);
     }

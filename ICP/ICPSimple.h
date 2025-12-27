@@ -12,6 +12,7 @@
 #include <limits>
 
 // Internal headers
+#include <ICP/EigenUtils.h>
 #include <ICP/ICPHelpers.h>
 #include <ICP/ICPLM.h>
 
@@ -151,19 +152,6 @@ InnerSolveResult solveInner(
         default:
             return solveInnerGN<JacobianPolicy>(fwdCorrs, revCorrs, initialPose, rayDir, weighting, params);
     }
-}
-
-/**
- * Convert Pose7 to Isometry3d for correspondence computation.
- */
-inline Eigen::Isometry3d pose7ToIsometry(const Pose7& pose)
-{
-    Quaternion q(pose[3], pose[0], pose[1], pose[2]);
-    q.normalize();
-    Eigen::Isometry3d iso = Eigen::Isometry3d::Identity();
-    iso.linear() = q.toRotationMatrix();
-    iso.translation() = pose.tail<3>();
-    return iso;
 }
 
 /**

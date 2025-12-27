@@ -181,6 +181,12 @@ struct Grid
      */
     AABB computeWorldAABB() const;
 
+    /**
+     * Compute world-space AABB using an explicit world pose.
+     * Use this during optimization when the current Pose7 differs from grid.pose.
+     */
+    AABB computeWorldAABB(const Eigen::Isometry3d& worldPose) const;
+
 
     /**
      * Perturb the grid pose with random rotation and translation.

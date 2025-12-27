@@ -1,6 +1,7 @@
 #pragma once
 
 // Standard C++ headers
+#include <set>
 #include <string>
 #include <vector>
 
@@ -31,13 +32,17 @@ struct CommonOptions
     Backend backend = Backend::HandRolled7D;
     GridType gridType = GridType::TwoHemispheres;
 
-    // Input files
+    // Input files (single/two-grid mode)
     std::string sourceFile;
     std::string targetFile;
 
+    // Multi-grid mode
+    std::string gridFolder;              // Folder containing EXR files
+    std::vector<int> gridIndices;        // Indices to load (empty = all)
+
     // Session options
-    bool useGridPoses = false;  // Use T_source * T_target^{-1} as initial alignment
-    bool fixPoseA = false;      // For two-pose solver: hold first pose fixed
+    bool useGridPoses = false;  // Use grid poses as initial alignment
+    bool fixFirstPose = false;  // For multi-pose solver: hold first pose fixed
 
     // Synthetic grid parameters (test mode)
     int gridWidth = 32;
@@ -77,6 +82,16 @@ struct CommonOptions
     };
     Solver solver = Solver::GaussNewton;
 
+    // Linear solver type for Ceres
+    enum class LinearSolver
+    {
+        DenseQR,         // Default, good for small problems
+        DenseSchur,      // For bundle adjustment style problems
+        SparseSchur,     // Sparse version of Schur
+        IterativeSchur   // Iterative, good for very large problems
+    };
+    LinearSolver linearSolver = LinearSolver::DenseQR;
+
     // Line search parameters (nested struct for grouping)
     struct LineSearch
     {
@@ -109,6 +124,9 @@ struct CommonOptions
     // Output
     bool verbose = false;
 };
+
+// Parse grid indices from a string: "0,1,3" or "0-9" or "0-5,10,15-20" or "" (empty = all)
+std::vector<int> parseGridIndices(const std::string& str);
 
 // Parse command-line arguments into CommonOptions
 // Returns true on success, false if help was requested or error occurred

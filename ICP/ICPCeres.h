@@ -27,6 +27,7 @@
 // Internal headers
 #include <ICP/Correspondences.h>
 #include <ICP/EigenTypes.h>
+#include <ICP/EigenUtils.h>
 #include <ICP/Grid.h>
 #include <ICP/ICPParams.h>
 #include <ICP/JacobiansAmbient.h>
@@ -254,19 +255,6 @@ CeresInnerSolveResult solveInnerCeres(
 }
 
 /**
- * Convert Pose7 to Isometry3d for correspondence computation.
- */
-inline Eigen::Isometry3d pose7ToIsometryCeres(const Pose7& pose)
-{
-    Quaternion q(pose[3], pose[0], pose[1], pose[2]);
-    q.normalize();
-    Eigen::Isometry3d iso = Eigen::Isometry3d::Identity();
-    iso.linear() = q.toRotationMatrix();
-    iso.translation() = pose.tail<3>();
-    return iso;
-}
-
-/**
  * Full Ceres ICP solver with outer loop.
  *
  * @param source        Source grid
@@ -302,7 +290,7 @@ CeresICPResult solveICPCeres(
         result.outer_iterations++;
 
         // Compute correspondences at current pose
-        Eigen::Isometry3d srcToTgt = pose7ToIsometryCeres(pose);
+        Eigen::Isometry3d srcToTgt = pose7ToIsometry(pose);
         auto corrs = computeBidirectionalCorrs(
             source, target, rayDir.cast<float>(), srcToTgt, outerParams.maxDist);
 

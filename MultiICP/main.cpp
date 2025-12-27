@@ -138,15 +138,15 @@ int main(int argc, char** argv)
 
     // Run two-pose Ceres ICP solver
     std::cout << "\nRunning Two-Pose Ceres ICP";
-    if (opts.fixPoseA)
+    if (opts.fixFirstPose)
     {
-        std::cout << " (pose A fixed)";
+        std::cout << " (first pose fixed)";
     }
     std::cout << "...\n";
 
     auto result = solveICPCeresTwoPose<RayJacobianSimplified>(
         gridA, gridB, poseA, poseB, rayDir, weighting, ceresOpts, outerParams,
-        opts.fixPoseA);
+        opts.fixFirstPose);
 
     // Display results
     std::cout << "\n=== Two-Pose ICP Results ===\n";

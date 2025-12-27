@@ -11,6 +11,7 @@ set(TARGET_NAME ICP)
 add_library(${TARGET_NAME} STATIC
     Grid.cpp
     GridFactory.cpp
+    GridLoader.cpp
     CommonOptions.cpp
 )
 

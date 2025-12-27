@@ -272,7 +272,7 @@ CeresTwoPoseResult solveICPCeresTwoPose(
 
         // Compute relative pose for correspondence computation: A_to_B = A * B^{-1}
         Pose7 relPose = computeRelativePose(poseA, poseB);
-        Eigen::Isometry3d aToB = pose7ToIsometryCeres(relPose);
+        Eigen::Isometry3d aToB = pose7ToIsometry(relPose);
 
         // Compute bidirectional correspondences
         // Forward: rays from A hitting B

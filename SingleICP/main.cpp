@@ -32,13 +32,45 @@ int main(int argc, char** argv)
     }
     else
     {
-        // TODO: Load grids from EXR files
-        std::cerr << "Error: EXR file loading not yet implemented\n";
-        return 1;
+        // Load grids from EXR files
+        if (!source.loadFromExr(opts.sourceFile))
+        {
+            std::cerr << "Error: Failed to load source EXR: " << opts.sourceFile << "\n";
+            return 1;
+        }
+        if (!target.loadFromExr(opts.targetFile))
+        {
+            std::cerr << "Error: Failed to load target EXR: " << opts.targetFile << "\n";
+            return 1;
+        }
+
+        if (opts.verbose)
+        {
+            std::cout << "Loaded source: " << source.filename << " (" << source.width << "x" << source.height << ")\n";
+            std::cout << "Loaded target: " << target.filename << " (" << target.width << "x" << target.height << ")\n";
+        }
     }
 
-    // Create initial pose with perturbations (if requested)
-    Pose7 initialPose = identityPose();
+    // Create initial pose
+    Pose7 initialPose;
+    if (opts.useGridPoses)
+    {
+        // Compute initial alignment from grid poses: T_source * T_target^{-1}
+        Eigen::Isometry3d relPose = source.pose * target.pose.inverse();
+        initialPose = isometryToPose7(relPose);
+
+        if (opts.verbose)
+        {
+            std::cout << "\nUsing grid poses for initial alignment:\n";
+            std::cout << "  Initial pose: q=[" << initialPose[0] << ", " << initialPose[1] << ", "
+                      << initialPose[2] << ", " << initialPose[3] << "], t=["
+                      << initialPose[4] << ", " << initialPose[5] << ", " << initialPose[6] << "]\n";
+        }
+    }
+    else
+    {
+        initialPose = identityPose();
+    }
 
     if (opts.rotationNoise > 0.0f || opts.translationNoise > 0.0f)
     {

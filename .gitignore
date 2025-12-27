@@ -43,3 +43,4 @@ Doxyfile
 /**/.#*
 /**/__pycache__
 iwyu-report.txt
+ExternalData/

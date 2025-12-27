@@ -96,6 +96,17 @@ inline Vector7 identityPose()
     return pose;
 }
 
+/// Convert Isometry3d to Pose7 [qx, qy, qz, qw, tx, ty, tz]
+inline Vector7 isometryToPose7(const Eigen::Isometry3d& iso)
+{
+    Quaternion q(iso.rotation());
+    q.normalize();
+    Vector7 pose;
+    pose << q.x(), q.y(), q.z(), q.w(),
+            iso.translation().x(), iso.translation().y(), iso.translation().z();
+    return pose;
+}
+
 /// Create pose from translation only (identity rotation)
 inline Vector7 translationPose(double tx, double ty, double tz)
 {

@@ -35,6 +35,10 @@ struct CommonOptions
     std::string sourceFile;
     std::string targetFile;
 
+    // Session options
+    bool useGridPoses = false;  // Use T_source * T_target^{-1} as initial alignment
+    bool fixPoseA = false;      // For two-pose solver: hold first pose fixed
+
     // Synthetic grid parameters (test mode)
     int gridWidth = 32;
     int gridHeight = 32;
@@ -114,6 +118,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 struct InnerParams;
 struct OuterParams;
 struct CeresICPOptions;
+struct ICPSessionParams;
 
 /**
  * Convert CommonOptions to InnerParams.
@@ -129,5 +134,10 @@ OuterParams commonOptionsToOuterParams(const CommonOptions& opts);
  * Convert CommonOptions to CeresICPOptions.
  */
 CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts);
+
+/**
+ * Convert CommonOptions to ICPSessionParams.
+ */
+ICPSessionParams commonOptionsToSessionParams(const CommonOptions& opts);
 
 } // namespace ICP

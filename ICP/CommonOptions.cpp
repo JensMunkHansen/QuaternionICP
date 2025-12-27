@@ -90,6 +90,12 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::ValueFlag<int> subsampleY(parser, "N", "Subsample Y stride (default: 1)", {"subsample-y"});
     args::ValueFlag<int> subsample(parser, "N", "Subsample both X and Y (default: 1)", {"subsample"});
 
+    // Session options
+    args::Flag useGridPoses(parser, "use-grid-poses",
+        "Compute initial alignment from grid poses (T_source * T_target^-1)", {"use-grid-poses"});
+    args::Flag fixPoseA(parser, "fix-pose-a",
+        "For two-pose solver: hold first pose fixed", {"fix-pose-a"});
+
     // Verbose
     args::Flag verbose(parser, "verbose", "Verbose output", {'v', "verbose"});
 
@@ -190,6 +196,8 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     if (subsampleY) opts.subsampleY = args::get(subsampleY);
 
     opts.verbose = verbose;
+    opts.useGridPoses = useGridPoses;
+    opts.fixPoseA = fixPoseA;
 
     return true;
 }
@@ -272,6 +280,18 @@ CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts)
     ceresOpts.silent = !opts.verbose;
 
     return ceresOpts;
+}
+
+ICPSessionParams commonOptionsToSessionParams(const CommonOptions& opts)
+{
+    ICPSessionParams params;
+    params.backend = (opts.backend == CommonOptions::Backend::Ceres7)
+                         ? SolverBackend::Ceres
+                         : SolverBackend::HandRolled;
+    params.useGridPoses = opts.useGridPoses;
+    params.fixPoseA = opts.fixPoseA;
+    params.verbose = opts.verbose;
+    return params;
 }
 
 } // namespace ICP

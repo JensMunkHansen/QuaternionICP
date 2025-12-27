@@ -226,6 +226,29 @@ struct OuterParams
 };
 
 /**
+ * Session-level parameters for ICP registration.
+ *
+ * Controls how grids are loaded and how the initial alignment is computed.
+ * These parameters apply to the overall registration session, not individual
+ * solver iterations.
+ */
+struct ICPSessionParams
+{
+    /// Solver backend selection
+    SolverBackend backend = SolverBackend::HandRolled;
+
+    /// If true, compute initial alignment from grid poses: T_source * T_target^{-1}
+    /// If false, start from identity (or user-supplied initial pose)
+    bool useGridPoses = false;
+
+    /// For two-pose solver: hold first pose fixed (removes gauge freedom)
+    bool fixPoseA = false;
+
+    /// Verbose output for session-level operations
+    bool verbose = false;
+};
+
+/**
  * Ceres-specific solver options.
  */
 struct CeresICPOptions

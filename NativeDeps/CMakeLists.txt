@@ -67,12 +67,23 @@ cmake_dependent_option(BUILD_GRIDSEARCH "Build GridSearch" OFF
 
 # Optional accelerator support (disabled by default for simple builds)
 # Note: USE_CUDA option is declared at top of file before project()
+option(USE_MKL "Enable Intel MKL (LAPACK) in Ceres" OFF)
 option(USE_TBB "Enable TBB threading in Ceres" OFF)
 option(USE_SUITESPARSE "Enable SuiteSparse in Ceres" OFF)
 
 # CUDA configuration
 set(CUDA_TOOLKIT_ROOT "/usr/local/cuda-12.2" CACHE PATH "CUDA toolkit root")
 set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures")
+
+#------------------------------------------------------------------------------
+# MKL detection (for Ceres LAPACK)
+#------------------------------------------------------------------------------
+if(USE_MKL)
+  if(NOT DEFINED ENV{MKLROOT})
+    message(FATAL_ERROR "USE_MKL=ON but MKLROOT not set. Run: source /opt/intel/oneapi/setvars.sh")
+  endif()
+  message(STATUS "MKLROOT: $ENV{MKLROOT}")
+endif()
 
 #------------------------------------------------------------------------------
 # TBB detection (for Ceres threading)
@@ -199,7 +210,6 @@ if(BUILD_CERES)
     -DCXSPARSE=OFF
     -DACCELERATESPARSE=OFF
     -DEIGENSPARSE=ON
-    -DLAPACK=OFF
     -DUSE_CUDA=OFF
   )
 
@@ -214,8 +224,16 @@ if(BUILD_CERES)
     )
   endif()
 
-  # NOTE: MKL/LAPACK disabled - causes declaration conflicts with Eigen+MKL.
-  # Applications should use spsMKL.cmake for MKL integration.
+  # MKL/LAPACK support
+  if(USE_MKL)
+    message(STATUS "  Ceres: MKL/LAPACK enabled")
+    list(APPEND CERES_CMAKE_ARGS
+      -DLAPACK=ON
+      -DBLA_VENDOR=Intel10_64lp_seq
+    )
+  else()
+    list(APPEND CERES_CMAKE_ARGS -DLAPACK=OFF)
+  endif()
 
   # TBB threading support
   if(USE_TBB)

@@ -80,6 +80,24 @@ enum class SolverType
 };
 
 /**
+ * Lambda update strategy for Levenberg-Marquardt.
+ *
+ * Controls how the damping parameter is adjusted based on step quality.
+ */
+enum class LMStrategy
+{
+    /// Simple: binary accept/reject with fixed multipliers.
+    /// Accept: lambda *= lambdaDown, Reject: lambda *= lambdaUp
+    Simple,
+
+    /// Gain ratio with Nielsen update (Ceres-style).
+    /// Uses rho = actual_reduction / model_reduction.
+    /// Accept: radius = radius / max(1/3, 1 - (2*rho - 1)^3)
+    /// Reject: radius /= decrease_factor, decrease_factor *= 2
+    GainRatio
+};
+
+/**
  * Line search parameters for inner solver.
  */
 struct ICPLineSearchParams
@@ -97,20 +115,90 @@ struct InnerParams
 {
     SolverType solverType = SolverType::GaussNewton;  ///< Solver algorithm to use
     int maxIterations = 12;
-    double stepTol = 1e-9;
+    double stepTol = 1e-9;  ///< Legacy: single threshold for delta norm
+
+    /// Translation convergence threshold (same units as data).
+    /// Converged when ||delta_translation|| < translationThreshold.
+    double translationThreshold = 1e-4;
+
+    /// Rotation convergence threshold (radians).
+    /// Converged when ||delta_rotation|| < rotationThreshold.
+    ///
+    /// Relationship to translation: at characteristic length L from origin,
+    /// rotation θ causes displacement ≈ L*θ. For balanced convergence:
+    ///   rotationThreshold ≈ translationThreshold / characteristicLength
+    ///
+    /// Default: 1e-4 rad ≈ 0.006° ≈ 20 arcsec (assumes L ≈ 1.0)
+    double rotationThreshold = 1e-4;
+
     double damping = 0.0;  ///< Damping for Gauss-Newton (ignored if using LM)
     bool verbose = false;  ///< Print per-iteration RMS
     ICPLineSearchParams lineSearch;
 
     struct LevenbergMarquardt
     {
+        LMStrategy strategy = LMStrategy::Simple;  ///< Lambda update strategy
+
         double lambda = 1e-3;       ///< Initial/fixed damping parameter
         bool fixedLambda = true;    ///< If true, use fixed lambda; if false, adapt lambda
-        double lambdaUp = 10.0;     ///< Factor to increase lambda on reject (adaptive only)
-        double lambdaDown = 0.1;    ///< Factor to decrease lambda on accept (adaptive only)
-        double lambdaMin = 1e-10;   ///< Minimum lambda (adaptive only)
-        double lambdaMax = 1e10;    ///< Maximum lambda (adaptive only)
+        double lambdaUp = 10.0;     ///< Factor to increase lambda on reject (Simple strategy)
+        double lambdaDown = 0.1;    ///< Factor to decrease lambda on accept (Simple strategy)
+        double lambdaMin = 1e-10;   ///< Minimum lambda
+        double lambdaMax = 1e10;    ///< Maximum lambda
+
+        /// Minimum gain ratio (rho) for step acceptance (GainRatio strategy).
+        /// Step accepted if rho > minRelativeDecrease.
+        /// Ceres default: 1e-3
+        double minRelativeDecrease = 1e-3;
     } lm;
+
+    /**
+     * Factory method for Gauss-Newton with all parameters explicit.
+     * Use this to ensure no parameters are accidentally omitted.
+     */
+    static InnerParams gaussNewton(
+        int maxIterations,
+        double translationThreshold,
+        double rotationThreshold,
+        double damping = 0.0,
+        bool lineSearchEnabled = false,
+        bool verbose = false)
+    {
+        InnerParams p;
+        p.solverType = SolverType::GaussNewton;
+        p.maxIterations = maxIterations;
+        p.translationThreshold = translationThreshold;
+        p.rotationThreshold = rotationThreshold;
+        p.damping = damping;
+        p.lineSearch.enabled = lineSearchEnabled;
+        p.verbose = verbose;
+        return p;
+    }
+
+    /**
+     * Factory method for Levenberg-Marquardt with all parameters explicit.
+     * Use this to ensure no parameters are accidentally omitted.
+     */
+    static InnerParams levenbergMarquardt(
+        int maxIterations,
+        double translationThreshold,
+        double rotationThreshold,
+        double lambda,
+        bool adaptiveLambda = true,
+        bool lineSearchEnabled = false,
+        bool verbose = false)
+    {
+        InnerParams p;
+        p.solverType = SolverType::LevenbergMarquardt;
+        p.maxIterations = maxIterations;
+        p.translationThreshold = translationThreshold;
+        p.rotationThreshold = rotationThreshold;
+        p.lm.lambda = lambda;
+        p.lm.fixedLambda = !adaptiveLambda;
+        p.lineSearch.enabled = lineSearchEnabled;
+        p.verbose = verbose;
+        return p;
+    }
 };
 
 /**

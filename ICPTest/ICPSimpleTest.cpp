@@ -10,6 +10,24 @@
 using namespace ICP;
 using Catch::Matchers::WithinAbs;
 
+/**
+ * Create InnerParams matching Python reference implementation.
+ * Pure Gauss-Newton, no line search, no damping.
+ * Uses factory method to ensure all parameters are explicit.
+ */
+InnerParams pythonReferenceParams()
+{
+    // All parameters explicit via factory method
+    return InnerParams::gaussNewton(
+        /*maxIterations=*/12,
+        /*translationThreshold=*/1e-9,  // Very small to match Python (uses stepTol only)
+        /*rotationThreshold=*/1e-9,     // Very small to match Python
+        /*damping=*/0.0,                // Pure Gauss-Newton
+        /*lineSearchEnabled=*/false,    // No line search
+        /*verbose=*/false
+    );
+}
+
 TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
 {
     // Match Python: nx=45, ny=45, spacing=2.0/44
@@ -21,6 +39,9 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
     GeometryWeighting weighting;
     weighting.enable_weight = false;
     weighting.enable_gate = false;
+
+    // Use explicit Python-matching parameters
+    InnerParams pyParams = pythonReferenceParams();
 
     auto v0 = source.getVertex(0);
     auto vLast = source.getVertex(45*45 - 1);
@@ -67,7 +88,7 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
         }
 
         auto result = solveInner<RayJacobianSimplified>(
-            corrs.forward, corrs.reverse, pose, rayDir, weighting);
+            corrs.forward, corrs.reverse, pose, rayDir, weighting, pyParams);
 
         WARN("RMS: " << result.rms);
         WARN("Iterations: " << result.iterations);
@@ -87,9 +108,11 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
         WARN("Reverse correspondences: " << corrs.reverse.size());
 
         // Run single iterations to print per-iteration RMS
-        InnerParams singleIter;
+        // Use Python reference params but with 1 iteration per call
+        InnerParams singleIter = pythonReferenceParams();
         singleIter.maxIterations = 1;
-        singleIter.stepTol = 0;  // Don't stop early
+        singleIter.translationThreshold = 0;  // Don't stop early
+        singleIter.rotationThreshold = 0;
 
         for (int i = 0; i < 12; ++i)
         {
@@ -115,9 +138,11 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
         WARN("Reverse correspondences: " << corrs.reverse.size());
 
         // Run single iterations to print per-iteration RMS
-        InnerParams singleIter;
+        // Use Python reference params but with 1 iteration per call
+        InnerParams singleIter = pythonReferenceParams();
         singleIter.maxIterations = 1;
-        singleIter.stepTol = 0;  // Don't stop early
+        singleIter.translationThreshold = 0;  // Don't stop early
+        singleIter.rotationThreshold = 0;
 
         for (int i = 0; i < 12; ++i)
         {
@@ -144,12 +169,11 @@ TEST_CASE("solveICP outer loop", "[icp][outer][python]")
 
     Vector3 rayDir(0, 0, -1);
 
-    InnerParams innerParams;
-    innerParams.maxIterations = 12;
-    innerParams.stepTol = 1e-9;
-    innerParams.damping = 0.0;
+    // Explicit Python reference parameters for inner loop
+    InnerParams innerParams = pythonReferenceParams();
     innerParams.verbose = true;
 
+    // Explicit outer loop parameters
     OuterParams outerParams;
     outerParams.maxIterations = 6;
     outerParams.convergenceTol = 0.0;  // Disable early stopping to run all iterations

@@ -204,7 +204,8 @@ CeresInnerSolveResult solveInnerCeres(
                 c.srcPoint.cast<double>(),  // tgtPoint (q)
                 c.tgtPoint.cast<double>(),  // srcPoint (p)
                 c.tgtNormal.cast<double>(), // srcNormal
-                rayDir),
+                rayDir,
+                weighting),
             nullptr, pose_data);
     }
 
@@ -225,7 +226,8 @@ CeresInnerSolveResult solveInnerCeres(
 
     result.iterations = result.summary.iterations.size();
     result.converged = (result.summary.termination_type == ceres::CONVERGENCE);
-    result.rms = std::sqrt(result.summary.final_cost / result.valid_count);
+    // Ceres uses 0.5 * sum(r²), so multiply by 2 to get sum_sq for RMS
+    result.rms = std::sqrt(2.0 * result.summary.final_cost / result.valid_count);
 
     // Convert Sophus::SE3d back to Pose7
     Quaternion q_final = pose.unit_quaternion();
@@ -240,7 +242,7 @@ CeresInnerSolveResult solveInnerCeres(
     if (ceresOpts.verbose)
     {
         std::cout << "\t\tCeres: " << result.iterations << " iterations, "
-                  << "final_cost=" << result.summary.final_cost
+                  << "cost=" << 2.0 * result.summary.final_cost  // Convert from Ceres's 0.5*sum to sum
                   << ", rms=" << result.rms << "\n";
     }
 

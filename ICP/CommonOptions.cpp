@@ -50,8 +50,11 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     // ICP parameters
     args::ValueFlag<int> outer_flag(parser, "int", "Max outer iterations", {'o', "outer-iterations"}, 10);
     args::ValueFlag<int> inner_flag(parser, "int", "Max inner iterations", {'i', "inner-iterations"}, 5);
-    args::ValueFlag<double> stepTol(parser, "tol", "Step tolerance (default: 1e-9)", {"step-tol"});
     args::ValueFlag<double> rmsTol(parser, "tol", "RMS tolerance (default: 1e-9)", {"rms-tol"});
+
+    // Convergence thresholds
+    args::ValueFlag<double> transThreshold(parser, "tol", "Translation convergence threshold (default: 1e-4)", {"trans-threshold"});
+    args::ValueFlag<double> rotThreshold(parser, "tol", "Rotation convergence threshold in radians (default: 1e-4)", {"rot-threshold"});
 
     // Solver type
     args::MapFlag<std::string, CommonOptions::Solver> solver_flag(parser, "solver",
@@ -60,7 +63,11 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
          {"lm", CommonOptions::Solver::LevenbergMarquardt}},
         CommonOptions::Solver::GaussNewton);
 
-    args::ValueFlag<double> damping(parser, "val", "GN damping factor (default: 0.0)", {"damping"});
+    // Line search parameters
+    args::Flag lineSearchFlag(parser, "line-search", "Enable line search", {"line-search"});
+    args::ValueFlag<int> lsMaxIter(parser, "int", "Line search max iterations (default: 10)", {"ls-max-iter"});
+    args::ValueFlag<double> lsAlpha(parser, "val", "Line search initial step size (default: 1.0)", {"ls-alpha"});
+    args::ValueFlag<double> lsBeta(parser, "val", "Line search step reduction factor (default: 0.5)", {"ls-beta"});
 
     // Levenberg-Marquardt parameters
     args::ValueFlag<double> lmLambda(parser, "val", "LM lambda (default: 1e-3)", {"lm-lambda"});
@@ -144,20 +151,28 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 
     if (outer_flag) opts.outerIterations = args::get(outer_flag);
     if (inner_flag) opts.innerIterations = args::get(inner_flag);
-    if (stepTol) opts.stepTol = args::get(stepTol);
     if (rmsTol) opts.rmsTol = args::get(rmsTol);
+
+    // Convergence thresholds
+    if (transThreshold) opts.translationThreshold = args::get(transThreshold);
+    if (rotThreshold) opts.rotationThreshold = args::get(rotThreshold);
 
     // Solver type
     if (solver_flag) opts.solver = args::get(solver_flag);
-    if (damping) opts.damping = args::get(damping);
+
+    // Line search parameters
+    opts.lineSearch.enabled = lineSearchFlag;
+    if (lsMaxIter) opts.lineSearch.maxIterations = args::get(lsMaxIter);
+    if (lsAlpha) opts.lineSearch.alpha = args::get(lsAlpha);
+    if (lsBeta) opts.lineSearch.beta = args::get(lsBeta);
 
     // LM parameters
-    if (lmLambda) opts.lmLambda = args::get(lmLambda);
-    opts.lmFixedLambda = !lmAdaptive;  // Default is fixed, --lm-adaptive makes it adaptive
-    if (lmLambdaUp) opts.lmLambdaUp = args::get(lmLambdaUp);
-    if (lmLambdaDown) opts.lmLambdaDown = args::get(lmLambdaDown);
-    if (lmLambdaMin) opts.lmLambdaMin = args::get(lmLambdaMin);
-    if (lmLambdaMax) opts.lmLambdaMax = args::get(lmLambdaMax);
+    if (lmLambda) opts.lm.lambda = args::get(lmLambda);
+    opts.lm.fixedLambda = !lmAdaptive;  // Default is fixed, --lm-adaptive makes it adaptive
+    if (lmLambdaUp) opts.lm.lambdaUp = args::get(lmLambdaUp);
+    if (lmLambdaDown) opts.lm.lambdaDown = args::get(lmLambdaDown);
+    if (lmLambdaMin) opts.lm.lambdaMin = args::get(lmLambdaMin);
+    if (lmLambdaMax) opts.lm.lambdaMax = args::get(lmLambdaMax);
 
     opts.enableIncidenceWeight = !noIncidenceWeight;
     opts.enableGrazingGate = !noGrazingGate;
@@ -179,25 +194,37 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 InnerParams commonOptionsToInnerParams(const CommonOptions& opts)
 {
     InnerParams params;
-    params.maxIterations = opts.innerIterations;
-    params.stepTol = opts.stepTol;
-    params.verbose = opts.verbose;
 
     // Solver type
     params.solverType = (opts.solver == CommonOptions::Solver::LevenbergMarquardt)
                             ? SolverType::LevenbergMarquardt
                             : SolverType::GaussNewton;
 
-    // GN damping
-    params.damping = opts.damping;
+    // Iteration limits
+    params.maxIterations = opts.innerIterations;
+
+    // Convergence thresholds
+    params.translationThreshold = opts.translationThreshold;
+    params.rotationThreshold = opts.rotationThreshold;
+
+    // GN damping (always 0 for pure GN; use LM for regularization)
+    params.damping = 0.0;
+
+    // Line search parameters
+    params.lineSearch.enabled = opts.lineSearch.enabled;
+    params.lineSearch.maxIterations = opts.lineSearch.maxIterations;
+    params.lineSearch.alpha = opts.lineSearch.alpha;
+    params.lineSearch.beta = opts.lineSearch.beta;
 
     // LM parameters
-    params.lm.lambda = opts.lmLambda;
-    params.lm.fixedLambda = opts.lmFixedLambda;
-    params.lm.lambdaUp = opts.lmLambdaUp;
-    params.lm.lambdaDown = opts.lmLambdaDown;
-    params.lm.lambdaMin = opts.lmLambdaMin;
-    params.lm.lambdaMax = opts.lmLambdaMax;
+    params.lm.lambda = opts.lm.lambda;
+    params.lm.fixedLambda = opts.lm.fixedLambda;
+    params.lm.lambdaUp = opts.lm.lambdaUp;
+    params.lm.lambdaDown = opts.lm.lambdaDown;
+    params.lm.lambdaMin = opts.lm.lambdaMin;
+    params.lm.lambdaMax = opts.lm.lambdaMax;
+
+    params.verbose = opts.verbose;
 
     return params;
 }
@@ -209,6 +236,39 @@ OuterParams commonOptionsToOuterParams(const CommonOptions& opts)
     params.convergenceTol = opts.rmsTol;
     params.verbose = opts.verbose;
     return params;
+}
+
+CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts)
+{
+    CeresICPOptions ceresOpts;
+
+    // Iteration and tolerance settings
+    ceresOpts.maxIterations = opts.innerIterations;
+    ceresOpts.functionTolerance = opts.translationThreshold;
+    ceresOpts.gradientTolerance = opts.translationThreshold;
+    ceresOpts.parameterTolerance = opts.translationThreshold;
+
+    // Solver type: LM vs GN
+    if (opts.solver == CommonOptions::Solver::LevenbergMarquardt)
+    {
+        ceresOpts.useLM = true;
+        // Convert lambda to trust region radius: radius = 1 / lambda
+        double lambda = opts.lm.lambda;
+        ceresOpts.initialTrustRegionRadius = (lambda > 0) ? 1.0 / lambda : 1e4;
+        ceresOpts.maxTrustRegionRadius = (opts.lm.lambdaMin > 0) ? 1.0 / opts.lm.lambdaMin : 1e8;
+    }
+    else  // Gauss-Newton
+    {
+        ceresOpts.useLM = false;
+        // Large trust region for GN approximation
+        ceresOpts.initialTrustRegionRadius = 1e16;
+        ceresOpts.maxTrustRegionRadius = 1e32;
+    }
+
+    ceresOpts.verbose = opts.verbose;
+    ceresOpts.silent = !opts.verbose;
+
+    return ceresOpts;
 }
 
 } // namespace ICP

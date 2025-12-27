@@ -222,6 +222,11 @@ struct OuterParams
     int maxIterations = 6;
     double convergenceTol = 1e-9;  // Relative RMS change threshold
     float maxDist = 100.0f;        // Max ray distance for correspondences
+
+    // Subsampling for correspondence computation
+    int subsampleX = 1;            // X stride (1 = no subsampling)
+    int subsampleY = 1;            // Y stride (1 = no subsampling)
+
     bool verbose = false;          // Print per-iteration information
 };
 

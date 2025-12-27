@@ -12,6 +12,7 @@ add_library(${TARGET_NAME} STATIC
     Grid.cpp
     GridFactory.cpp
     GridLoader.cpp
+    MultiViewICP.cpp
     CommonOptions.cpp
 )
 

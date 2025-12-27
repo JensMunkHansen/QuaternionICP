@@ -135,37 +135,7 @@ int main(int argc, char** argv)
     Vector3 rayDir(0.0, 0.0, -1.0);
 
     // Display ICP configuration
-    std::cout << "\n=== ICP Configuration ===\n";
-    std::cout << "Backend: " << (opts.backend == CommonOptions::Backend::Ceres7 ? "Ceres" : "HandRolled") << "\n";
-    if (opts.backend == CommonOptions::Backend::Ceres7)
-    {
-        std::cout << "Jacobian: "
-                  << (opts.jacobianPolicy == CommonOptions::Jacobian::Consistent
-                      ? "consistent" : "simplified") << "\n";
-    }
-    std::cout << "\nOuter loop:\n";
-    std::cout << "\tMax iterations: " << outerParams.maxIterations << "\n";
-    std::cout << "\tConvergence tolerance: " << outerParams.convergenceTol << "\n";
-    std::cout << "\tMax correspondence distance: " << outerParams.maxDist << "\n";
-    std::cout << "\nInner loop:\n";
-    std::cout << "\tSolver: " << (innerParams.solverType == SolverType::LevenbergMarquardt ? "LM" : "GN") << "\n";
-    std::cout << "\tMax iterations: " << innerParams.maxIterations << "\n";
-    std::cout << "\tTranslation threshold: " << innerParams.translationThreshold << "\n";
-    std::cout << "\tRotation threshold: " << innerParams.rotationThreshold << " rad\n";
-    if (innerParams.lineSearch.enabled && opts.backend == CommonOptions::Backend::HandRolled7D)
-    {
-        std::cout << "\tLine search: enabled (alpha=" << innerParams.lineSearch.alpha
-                  << ", beta=" << innerParams.lineSearch.beta << ")\n";
-    }
-    if (innerParams.solverType == SolverType::LevenbergMarquardt)
-    {
-        std::cout << "\tLM lambda: " << innerParams.lm.lambda
-                  << (innerParams.lm.fixedLambda ? " (fixed)" : " (adaptive)") << "\n";
-    }
-    std::cout << "\nGeometry weighting:\n";
-    std::cout << "\tIncidence weighting: " << (weighting.enable_weight ? "enabled" : "disabled") << "\n";
-    std::cout << "\tGrazing angle gate: " << (weighting.enable_gate ? "enabled" : "disabled") << "\n";
-    std::cout << "\tTau threshold: " << weighting.tau << "\n";
+    printCommonConfig(opts);
 
     // Run ICP solver based on backend selection
     Pose7 finalPose;

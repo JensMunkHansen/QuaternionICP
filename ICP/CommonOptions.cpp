@@ -401,4 +401,56 @@ ICPSessionParams commonOptionsToSessionParams(const CommonOptions& opts)
     return params;
 }
 
+void printCommonConfig(const CommonOptions& opts)
+{
+    std::cout << "\n=== ICP Configuration ===\n";
+    std::cout << "Backend: " << (opts.backend == CommonOptions::Backend::Ceres7 ? "Ceres" : "HandRolled") << "\n";
+
+    if (opts.backend == CommonOptions::Backend::Ceres7)
+    {
+        std::cout << "Jacobian: "
+                  << (opts.jacobianPolicy == CommonOptions::Jacobian::Consistent
+                      ? "consistent" : "simplified") << "\n";
+
+        std::cout << "Linear solver: ";
+        switch (opts.linearSolver)
+        {
+            case CommonOptions::LinearSolver::DenseQR: std::cout << "DENSE_QR"; break;
+            case CommonOptions::LinearSolver::DenseSchur: std::cout << "DENSE_SCHUR"; break;
+            case CommonOptions::LinearSolver::SparseSchur: std::cout << "SPARSE_SCHUR"; break;
+            case CommonOptions::LinearSolver::IterativeSchur: std::cout << "ITERATIVE_SCHUR"; break;
+        }
+        std::cout << "\n";
+    }
+
+    std::cout << "\nOuter loop:\n";
+    std::cout << "  Max iterations: " << opts.outerIterations << "\n";
+    std::cout << "  Convergence tolerance: " << opts.rmsTol << "\n";
+
+    std::cout << "\nInner loop:\n";
+    std::cout << "  Solver: " << (opts.solver == CommonOptions::Solver::LevenbergMarquardt ? "LM" : "GN") << "\n";
+    std::cout << "  Max iterations: " << opts.innerIterations << "\n";
+    std::cout << "  Translation threshold: " << opts.translationThreshold << "\n";
+    std::cout << "  Rotation threshold: " << opts.rotationThreshold << " rad\n";
+
+    if (opts.lineSearch.enabled && opts.backend == CommonOptions::Backend::HandRolled7D)
+    {
+        std::cout << "  Line search: enabled (alpha=" << opts.lineSearch.alpha
+                  << ", beta=" << opts.lineSearch.beta << ")\n";
+    }
+
+    if (opts.solver == CommonOptions::Solver::LevenbergMarquardt)
+    {
+        std::cout << "  LM lambda: " << opts.lm.lambda
+                  << (opts.lm.fixedLambda ? " (fixed)" : " (adaptive)") << "\n";
+    }
+
+    std::cout << "\nGeometry weighting:\n";
+    std::cout << "  Incidence weighting: " << (opts.enableIncidenceWeight ? "enabled" : "disabled") << "\n";
+    std::cout << "  Grazing angle gate: " << (opts.enableGrazingGate ? "enabled" : "disabled") << "\n";
+    std::cout << "  Tau threshold: " << opts.incidenceTau << "\n";
+
+    std::cout << "\nSubsampling: " << opts.subsampleX << "x" << opts.subsampleY << "\n";
+}
+
 } // namespace ICP

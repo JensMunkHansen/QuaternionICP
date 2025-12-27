@@ -166,4 +166,11 @@ CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts);
  */
 ICPSessionParams commonOptionsToSessionParams(const CommonOptions& opts);
 
+/**
+ * Print common ICP configuration to stdout.
+ *
+ * Displays backend, jacobian policy, outer/inner loop params, and geometry weighting.
+ */
+void printCommonConfig(const CommonOptions& opts);
+
 } // namespace ICP

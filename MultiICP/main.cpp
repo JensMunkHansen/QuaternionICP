@@ -94,25 +94,19 @@ int main(int argc, char** argv)
         params.fixFirstPose = opts.fixFirstPose;
         params.verbose = opts.verbose;
 
-        // Display configuration
-        std::cout << "\n=== Multi-View ICP Configuration ===\n";
-        std::cout << "Grids: " << grids.size() << "\n";
-        std::cout << "Max outer iterations: " << params.maxOuterIterations << "\n";
-        std::cout << "Convergence tolerance: " << params.convergenceTol << "\n";
-        std::cout << "Min correspondences per edge: " << params.minMatch << "\n";
-        std::cout << "First pose fixed: " << (params.fixFirstPose ? "yes" : "no") << "\n";
-        std::cout << "Linear solver: ";
-        switch (params.ceresOptions.linearSolverType)
-        {
-            case ceres::DENSE_QR: std::cout << "DENSE_QR"; break;
-            case ceres::DENSE_SCHUR: std::cout << "DENSE_SCHUR"; break;
-            case ceres::SPARSE_SCHUR: std::cout << "SPARSE_SCHUR"; break;
-            case ceres::ITERATIVE_SCHUR: std::cout << "ITERATIVE_SCHUR"; break;
-            default: std::cout << "other"; break;
-        }
+        // Display configuration (MultiICP always uses Ceres with ITERATIVE_SCHUR default)
+        CommonOptions displayOpts = opts;
+        displayOpts.backend = CommonOptions::Backend::Ceres7;
+        if (opts.linearSolver == CommonOptions::LinearSolver::DenseQR)
+            displayOpts.linearSolver = CommonOptions::LinearSolver::IterativeSchur;
+        printCommonConfig(displayOpts);
+        std::cout << "\nMulti-view:\n";
+        std::cout << "  Grids: " << grids.size() << "\n";
+        std::cout << "  Min correspondences per edge: " << params.minMatch << "\n";
+        std::cout << "  First pose fixed: " << (params.fixFirstPose ? "yes" : "no") << "\n";
         if (params.ceresOptions.linearSolverType == ceres::ITERATIVE_SCHUR)
         {
-            std::cout << " (preconditioner: ";
+            std::cout << "  Preconditioner: ";
             switch (params.ceresOptions.preconditionerType)
             {
                 case ceres::IDENTITY: std::cout << "IDENTITY"; break;
@@ -121,12 +115,8 @@ int main(int argc, char** argv)
                 case ceres::SCHUR_POWER_SERIES_EXPANSION: std::cout << "SCHUR_POWER_SERIES_EXPANSION"; break;
                 default: std::cout << "other"; break;
             }
-            std::cout << ")";
+            std::cout << "\n";
         }
-        std::cout << "\n";
-        std::cout << "Jacobian: "
-                  << (params.ceresOptions.jacobianPolicy == JacobianPolicy::Consistent
-                      ? "consistent" : "simplified") << "\n";
 
         // Run multi-view ICP
         std::cout << "\nRunning Multi-View ICP...\n";

@@ -44,6 +44,10 @@ struct CommonOptions
     bool useGridPoses = false;  // Use grid poses as initial alignment
     bool fixFirstPose = false;  // For multi-pose solver: hold first pose fixed
 
+    // Multi-view memory options
+    int maxCorrespondences = 0;  // Max correspondences per edge (0 = unlimited)
+    int maxNeighbors = 0;        // Max neighboring grids per grid (0 = unlimited)
+
     // Synthetic grid parameters (test mode)
     int gridWidth = 32;
     int gridHeight = 32;

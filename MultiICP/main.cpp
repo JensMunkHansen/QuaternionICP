@@ -72,6 +72,8 @@ int main(int argc, char** argv)
         params.minMatch = 50;
         params.subsampleX = opts.subsampleX;
         params.subsampleY = opts.subsampleY;
+        params.maxCorrespondences = opts.maxCorrespondences;
+        params.maxNeighbors = opts.maxNeighbors;
         params.weighting.enable_weight = opts.enableIncidenceWeight;
         params.weighting.enable_gate = opts.enableGrazingGate;
         params.weighting.tau = opts.incidenceTau;
@@ -103,6 +105,10 @@ int main(int argc, char** argv)
         std::cout << "\nMulti-view:\n";
         std::cout << "  Grids: " << grids.size() << "\n";
         std::cout << "  Min correspondences per edge: " << params.minMatch << "\n";
+        if (params.maxCorrespondences > 0)
+            std::cout << "  Max correspondences per edge: " << params.maxCorrespondences << "\n";
+        if (params.maxNeighbors > 0)
+            std::cout << "  Max neighbors per grid: " << params.maxNeighbors << "\n";
         std::cout << "  First pose fixed: " << (params.fixFirstPose ? "yes" : "no") << "\n";
         if (params.ceresOptions.linearSolverType == ceres::ITERATIVE_SCHUR)
         {

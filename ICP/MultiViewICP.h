@@ -46,6 +46,10 @@ struct MultiViewICPParams
     int subsampleX = 1;           // X subsampling stride
     int subsampleY = 1;           // Y subsampling stride
 
+    // Memory limits (0 = unlimited)
+    int maxCorrespondences = 0;   // Max correspondences per edge
+    int maxNeighbors = 0;         // Max neighbors per grid
+
     // Geometry weighting
     GeometryWeighting weighting;
 
@@ -93,6 +97,8 @@ struct MultiViewICPResult
  * @param minMatch    Minimum correspondences per edge
  * @param subsampleX  X subsampling stride
  * @param subsampleY  Y subsampling stride
+ * @param maxCorr     Max correspondences per edge (0=unlimited)
+ * @param maxNeighbors Max neighbors per grid (0=unlimited)
  * @param verbose     Print edge info
  * @return            Vector of edges
  */
@@ -104,6 +110,8 @@ std::vector<Edge> buildEdges(
     int minMatch,
     int subsampleX = 1,
     int subsampleY = 1,
+    int maxCorr = 0,
+    int maxNeighbors = 0,
     bool verbose = false);
 
 /**

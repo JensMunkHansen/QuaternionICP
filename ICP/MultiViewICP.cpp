@@ -23,6 +23,8 @@ std::vector<Edge> buildEdges(
     int minMatch,
     int subsampleX,
     int subsampleY,
+    int maxCorr,
+    int maxNeighbors,
     bool verbose)
 {
     std::vector<Edge> edges;
@@ -42,20 +44,31 @@ std::vector<Edge> buildEdges(
 
     Eigen::Vector3f rayDirF = rayDir.cast<float>();
 
-    // Generate all candidate pairs (i, j) where i < j
+    // Generate candidate pairs (i, j) where i < j, respecting maxNeighbors limit
     struct PairInfo
     {
         size_t i;
         size_t j;
     };
     std::vector<PairInfo> pairs;
+    std::vector<int> neighborCount(numGrids, 0);
+
     for (size_t i = 0; i < numGrids; i++)
     {
         for (size_t j = i + 1; j < numGrids; j++)
         {
+            // Skip if either grid has reached neighbor limit
+            if (maxNeighbors > 0 &&
+                (neighborCount[i] >= maxNeighbors || neighborCount[j] >= maxNeighbors))
+            {
+                continue;
+            }
+
             if (aabbs[i].overlaps(aabbs[j], maxDistance))
             {
                 pairs.push_back({i, j});
+                neighborCount[i]++;
+                neighborCount[j]++;
             }
         }
     }
@@ -84,6 +97,12 @@ std::vector<Edge> buildEdges(
     {
         const auto& pair = pairs[idx];
         auto& corr = pairCorrs[idx];
+
+        // Apply maxCorr limit by truncating correspondences
+        if (maxCorr > 0 && corr.forward.size() > static_cast<size_t>(maxCorr))
+            corr.forward.resize(maxCorr);
+        if (maxCorr > 0 && corr.reverse.size() > static_cast<size_t>(maxCorr))
+            corr.reverse.resize(maxCorr);
 
         if (static_cast<int>(corr.forward.size()) >= minMatch)
         {
@@ -159,7 +178,8 @@ MultiViewICPResult runMultiViewICP(
         std::vector<Edge> edges = buildEdges(
             grids, currentPoses, params.rayDir,
             params.maxDistance, params.minMatch,
-            params.subsampleX, params.subsampleY, params.verbose);
+            params.subsampleX, params.subsampleY,
+            params.maxCorrespondences, params.maxNeighbors, params.verbose);
 
         size_t totalCorr = 0;
         for (const auto& e : edges)

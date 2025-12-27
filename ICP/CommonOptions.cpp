@@ -164,6 +164,10 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::Flag fixFirstPose(parser, "fix-first-pose",
         "For multi-pose solver: hold first pose fixed", {"fix-first-pose"});
 
+    // Multi-view memory options
+    args::ValueFlag<int> maxCorr(parser, "N", "Max correspondences per edge (0=unlimited)", {"max-corr"});
+    args::ValueFlag<int> maxNeighbors(parser, "N", "Max neighbors per grid (0=unlimited)", {"max-neighbors"});
+
     // Verbose
     args::Flag verbose(parser, "verbose", "Verbose output", {'v', "verbose"});
 
@@ -281,6 +285,10 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     opts.verbose = verbose;
     opts.useGridPoses = useGridPoses;
     opts.fixFirstPose = fixFirstPose;
+
+    // Multi-view memory options
+    if (maxCorr) opts.maxCorrespondences = args::get(maxCorr);
+    if (maxNeighbors) opts.maxNeighbors = args::get(maxNeighbors);
 
     return true;
 }

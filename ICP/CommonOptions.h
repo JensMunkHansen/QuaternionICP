@@ -92,6 +92,14 @@ struct CommonOptions
     };
     LinearSolver linearSolver = LinearSolver::DenseQR;
 
+    // Jacobian policy
+    enum class Jacobian
+    {
+        Simplified,  // Ignore db/dq term (faster, default)
+        Consistent   // Full quotient rule (exact)
+    };
+    Jacobian jacobianPolicy = Jacobian::Simplified;
+
     // Line search parameters (nested struct for grouping)
     struct LineSearch
     {

@@ -137,6 +137,12 @@ int main(int argc, char** argv)
     // Display ICP configuration
     std::cout << "\n=== ICP Configuration ===\n";
     std::cout << "Backend: " << (opts.backend == CommonOptions::Backend::Ceres7 ? "Ceres" : "HandRolled") << "\n";
+    if (opts.backend == CommonOptions::Backend::Ceres7)
+    {
+        std::cout << "Jacobian: "
+                  << (opts.jacobianPolicy == CommonOptions::Jacobian::Consistent
+                      ? "consistent" : "simplified") << "\n";
+    }
     std::cout << "\nOuter loop:\n";
     std::cout << "\tMax iterations: " << outerParams.maxIterations << "\n";
     std::cout << "\tConvergence tolerance: " << outerParams.convergenceTol << "\n";

@@ -74,6 +74,15 @@ enum class SolverBackend
 };
 
 /**
+ * Jacobian computation policy for ray-projection residuals.
+ */
+enum class JacobianPolicy
+{
+    Simplified,  // Ignore db/dq term (faster, approximate)
+    Consistent   // Full quotient rule including db/dq (exact)
+};
+
+/**
  * Inner solver type.
  */
 enum class SolverType
@@ -269,6 +278,8 @@ struct CeresICPOptions
 
     ceres::LinearSolverType linearSolverType = ceres::DENSE_QR;
     ceres::PreconditionerType preconditionerType = ceres::SCHUR_JACOBI;  // For ITERATIVE_SCHUR
+
+    JacobianPolicy jacobianPolicy = JacobianPolicy::Simplified;  // Jacobian computation mode
 
     bool verbose = false;
     bool silent = false;  // Suppress all output

@@ -127,6 +127,13 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
          {"iterative-schur", CommonOptions::LinearSolver::IterativeSchur}},
         CommonOptions::LinearSolver::DenseQR);
 
+    // Jacobian policy
+    args::MapFlag<std::string, CommonOptions::Jacobian> jacobian_flag(parser, "jacobian",
+        "Jacobian policy: simplified (default) or consistent", {"jacobian"},
+        {{"simplified", CommonOptions::Jacobian::Simplified},
+         {"consistent", CommonOptions::Jacobian::Consistent}},
+        CommonOptions::Jacobian::Simplified);
+
     // Line search parameters
     args::Flag lineSearchFlag(parser, "line-search", "Enable line search", {"line-search"});
     args::ValueFlag<int> lsMaxIter(parser, "int", "Line search max iterations (default: 10)", {"ls-max-iter"});
@@ -243,6 +250,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     // Solver type
     if (solver_flag) opts.solver = args::get(solver_flag);
     if (linear_solver_flag) opts.linearSolver = args::get(linear_solver_flag);
+    if (jacobian_flag) opts.jacobianPolicy = args::get(jacobian_flag);
 
     // Line search parameters
     opts.lineSearch.enabled = lineSearchFlag;
@@ -370,6 +378,10 @@ CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts)
             ceresOpts.preconditionerType = ceres::SCHUR_JACOBI;
             break;
     }
+
+    // Jacobian policy
+    ceresOpts.jacobianPolicy = (opts.jacobianPolicy == CommonOptions::Jacobian::Consistent)
+        ? JacobianPolicy::Consistent : JacobianPolicy::Simplified;
 
     ceresOpts.verbose = opts.verbose;
     ceresOpts.silent = !opts.verbose;

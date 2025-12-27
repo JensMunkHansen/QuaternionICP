@@ -169,6 +169,12 @@ MultiViewICPResult runMultiViewICP(
         {
             std::cout << "Outer " << outer << ": " << edges.size() << " edges, "
                       << totalCorr << " correspondences\n";
+
+            // Print connectivity matrix on first iteration if small enough
+            if (outer == 0 && numGrids <= 20)
+            {
+                printConnectivityMatrix(buildCorrespondenceMatrix(edges, numGrids));
+            }
         }
 
         if (edges.empty())
@@ -205,16 +211,27 @@ MultiViewICPResult runMultiViewICP(
                     continue;
 
                 // ForwardRayCostTwoPose: srcPoint in src frame, tgtPoint/tgtNormal in dst frame
-                problem.AddResidualBlock(
-                    ForwardRayCostTwoPose<RayJacobianSimplified>::Create(
+                ceres::CostFunction* costFn = nullptr;
+                if (params.ceresOptions.jacobianPolicy == JacobianPolicy::Consistent)
+                {
+                    costFn = ForwardRayCostTwoPose<RayJacobianConsistent>::Create(
                         c.srcPoint.cast<double>(),
                         c.tgtPoint.cast<double>(),
                         c.tgtNormal.cast<double>(),
                         params.rayDir,
-                        params.weighting),
-                    nullptr,
-                    poseData[edge.srcIdx],
-                    poseData[edge.dstIdx]);
+                        params.weighting);
+                }
+                else
+                {
+                    costFn = ForwardRayCostTwoPose<RayJacobianSimplified>::Create(
+                        c.srcPoint.cast<double>(),
+                        c.tgtPoint.cast<double>(),
+                        c.tgtNormal.cast<double>(),
+                        params.rayDir,
+                        params.weighting);
+                }
+                problem.AddResidualBlock(costFn, nullptr,
+                    poseData[edge.srcIdx], poseData[edge.dstIdx]);
             }
         }
 
@@ -273,6 +290,44 @@ MultiViewICPResult runMultiViewICP(
     }
 
     return result;
+}
+
+std::vector<std::vector<int>> buildCorrespondenceMatrix(
+    const std::vector<Edge>& edges,
+    size_t numGrids)
+{
+    std::vector<std::vector<int>> matrix(numGrids, std::vector<int>(numGrids, 0));
+    for (const auto& edge : edges)
+        matrix[edge.srcIdx][edge.dstIdx] = static_cast<int>(edge.correspondences.size());
+    return matrix;
+}
+
+void printConnectivityMatrix(const std::vector<std::vector<int>>& counts)
+{
+    size_t n = counts.size();
+    if (n == 0)
+        return;
+
+    std::cout << "\nCorrespondence matrix (src -> dst):\n     ";
+    for (size_t j = 0; j < n; j++)
+        std::cout << std::setw(6) << j;
+    std::cout << "\n";
+
+    for (size_t i = 0; i < n; i++)
+    {
+        std::cout << std::setw(4) << i << " ";
+        for (size_t j = 0; j < n; j++)
+        {
+            if (i == j)
+                std::cout << "     -";
+            else if (counts[i][j] > 0)
+                std::cout << std::setw(6) << counts[i][j];
+            else
+                std::cout << "     .";
+        }
+        std::cout << "\n";
+    }
+    std::cout << "\n";
 }
 
 } // namespace ICP

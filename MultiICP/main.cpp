@@ -88,6 +88,9 @@ int main(int argc, char** argv)
             params.ceresOptions.linearSolverType = userOpts.linearSolverType;
             params.ceresOptions.preconditionerType = userOpts.preconditionerType;
         }
+        // Apply jacobian policy
+        params.ceresOptions.jacobianPolicy = (opts.jacobianPolicy == CommonOptions::Jacobian::Consistent)
+            ? JacobianPolicy::Consistent : JacobianPolicy::Simplified;
         params.fixFirstPose = opts.fixFirstPose;
         params.verbose = opts.verbose;
 
@@ -121,6 +124,9 @@ int main(int argc, char** argv)
             std::cout << ")";
         }
         std::cout << "\n";
+        std::cout << "Jacobian: "
+                  << (params.ceresOptions.jacobianPolicy == JacobianPolicy::Consistent
+                      ? "consistent" : "simplified") << "\n";
 
         // Run multi-view ICP
         std::cout << "\nRunning Multi-View ICP...\n";

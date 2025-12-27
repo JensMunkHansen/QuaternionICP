@@ -119,4 +119,25 @@ MultiViewICPResult runMultiViewICP(
     const std::vector<Pose7>& initialPoses,
     const MultiViewICPParams& params);
 
+/**
+ * Build correspondence count matrix from edges.
+ *
+ * @param edges     Vector of edges with correspondences
+ * @param numGrids  Number of grids
+ * @return          NxN matrix where [i][j] = count of correspondences from i to j
+ */
+std::vector<std::vector<int>> buildCorrespondenceMatrix(
+    const std::vector<Edge>& edges,
+    size_t numGrids);
+
+/**
+ * Print correspondence connectivity matrix.
+ *
+ * Shows how many correspondences exist between each grid pair.
+ * Diagonal shows '-', zero entries show '.'.
+ *
+ * @param counts NxN matrix of correspondence counts
+ */
+void printConnectivityMatrix(const std::vector<std::vector<int>>& counts);
+
 } // namespace ICP

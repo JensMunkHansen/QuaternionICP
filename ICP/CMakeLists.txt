@@ -4,6 +4,7 @@ find_package(Sophus REQUIRED)
 include(spsArgs)
 find_package(tinyexr REQUIRED)
 find_package(GridSearch REQUIRED)
+include(spsTBB)
 
 set(TARGET_NAME ICP)
 
@@ -27,4 +28,5 @@ target_link_libraries(${TARGET_NAME} PUBLIC
     Sophus::Sophus
     tinyexr::tinyexr
     taywee::args
+    TBB::tbb
 )

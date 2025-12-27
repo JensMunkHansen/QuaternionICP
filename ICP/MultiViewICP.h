@@ -43,6 +43,8 @@ struct MultiViewICPParams
     // Correspondence finding
     float maxDistance = 10.0f;    // Max ray distance and AABB margin
     int minMatch = 50;            // Minimum correspondences per edge
+    int subsampleX = 1;           // X subsampling stride
+    int subsampleY = 1;           // Y subsampling stride
 
     // Geometry weighting
     GeometryWeighting weighting;
@@ -51,8 +53,11 @@ struct MultiViewICPParams
     int maxOuterIterations = 10;
     double convergenceTol = 1e-9;  // RMS change threshold
 
-    // Inner loop (Ceres)
-    CeresICPOptions ceresOptions;
+    // Inner loop (Ceres) - default to ITERATIVE_SCHUR for multi-view efficiency
+    CeresICPOptions ceresOptions{
+        .linearSolverType = ceres::ITERATIVE_SCHUR,
+        .preconditionerType = ceres::SCHUR_JACOBI
+    };
 
     // First pose fixed (gauge freedom)
     bool fixFirstPose = true;
@@ -86,6 +91,8 @@ struct MultiViewICPResult
  * @param rayDir      Ray direction in local frame
  * @param maxDistance Max ray distance and AABB margin
  * @param minMatch    Minimum correspondences per edge
+ * @param subsampleX  X subsampling stride
+ * @param subsampleY  Y subsampling stride
  * @param verbose     Print edge info
  * @return            Vector of edges
  */
@@ -95,6 +102,8 @@ std::vector<Edge> buildEdges(
     const Vector3& rayDir,
     float maxDistance,
     int minMatch,
+    int subsampleX = 1,
+    int subsampleY = 1,
     bool verbose = false);
 
 /**

@@ -70,12 +70,24 @@ int main(int argc, char** argv)
         params.rayDir = Vector3(0.0, 0.0, -1.0);
         params.maxDistance = 100.0f;
         params.minMatch = 50;
+        params.subsampleX = opts.subsampleX;
+        params.subsampleY = opts.subsampleY;
         params.weighting.enable_weight = opts.enableIncidenceWeight;
         params.weighting.enable_gate = opts.enableGrazingGate;
         params.weighting.tau = opts.incidenceTau;
         params.maxOuterIterations = opts.outerIterations;
         params.convergenceTol = opts.rmsTol;
-        params.ceresOptions = commonOptionsToCeresOptions(opts);
+        // Keep default ITERATIVE_SCHUR, but apply user overrides
+        params.ceresOptions.maxIterations = opts.innerIterations;
+        params.ceresOptions.functionTolerance = opts.translationThreshold;
+        params.ceresOptions.verbose = opts.verbose;
+        // Override linear solver only if user specified it
+        if (opts.linearSolver != CommonOptions::LinearSolver::DenseQR)
+        {
+            auto userOpts = commonOptionsToCeresOptions(opts);
+            params.ceresOptions.linearSolverType = userOpts.linearSolverType;
+            params.ceresOptions.preconditionerType = userOpts.preconditionerType;
+        }
         params.fixFirstPose = opts.fixFirstPose;
         params.verbose = opts.verbose;
 

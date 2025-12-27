@@ -131,6 +131,8 @@ struct BidirectionalCorrs
  * @param rayDir   Ray direction in local frame (typically [0,0,-1])
  * @param srcToTgt Transform from source to target coordinates
  * @param maxDist  Maximum ray distance
+ * @param subsampleX Grid subsampling in X (1=all)
+ * @param subsampleY Grid subsampling in Y (1=all)
  * @return Forward and reverse correspondences
  */
 inline BidirectionalCorrs computeBidirectionalCorrs(
@@ -138,16 +140,20 @@ inline BidirectionalCorrs computeBidirectionalCorrs(
     const Grid& target,
     const Eigen::Vector3f& rayDir,
     const Eigen::Isometry3d& srcToTgt,
-    float maxDist)
+    float maxDist,
+    int subsampleX = 1,
+    int subsampleY = 1)
 {
     BidirectionalCorrs result;
 
     // Forward: rays from source, intersect target
-    result.forward = computeRayCorrespondences(source, target, rayDir, srcToTgt, maxDist);
+    result.forward = computeRayCorrespondences(source, target, rayDir, srcToTgt, maxDist,
+                                                subsampleX, subsampleY);
 
     // Reverse: rays from target, intersect source
     Eigen::Isometry3d tgtToSrc = srcToTgt.inverse();
-    result.reverse = computeRayCorrespondences(target, source, rayDir, tgtToSrc, maxDist);
+    result.reverse = computeRayCorrespondences(target, source, rayDir, tgtToSrc, maxDist,
+                                                subsampleX, subsampleY);
 
     return result;
 }

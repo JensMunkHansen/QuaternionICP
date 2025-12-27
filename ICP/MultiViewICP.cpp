@@ -6,6 +6,8 @@
 #include <sophus/ceres_manifold.hpp>
 #include <sophus/se3.hpp>
 
+#include <algorithm>
+#include <execution>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -19,6 +21,8 @@ std::vector<Edge> buildEdges(
     const Vector3& rayDir,
     float maxDistance,
     int minMatch,
+    int subsampleX,
+    int subsampleY,
     bool verbose)
 {
     std::vector<Edge> edges;
@@ -38,43 +42,66 @@ std::vector<Edge> buildEdges(
 
     Eigen::Vector3f rayDirF = rayDir.cast<float>();
 
-    // Check all pairs
+    // Generate all candidate pairs (i, j) where i < j
+    struct PairInfo
+    {
+        size_t i;
+        size_t j;
+    };
+    std::vector<PairInfo> pairs;
     for (size_t i = 0; i < numGrids; i++)
     {
         for (size_t j = i + 1; j < numGrids; j++)
         {
-            // AABB overlap check
-            if (!aabbs[i].overlaps(aabbs[j], maxDistance))
-                continue;
+            if (aabbs[i].overlaps(aabbs[j], maxDistance))
+            {
+                pairs.push_back({i, j});
+            }
+        }
+    }
+
+    // Pre-allocate storage for parallel results (one per pair)
+    std::vector<BidirectionalCorrs> pairCorrs(pairs.size());
+
+    // Compute correspondences in parallel - each thread writes to its own slot
+    std::for_each(std::execution::par, pairs.begin(), pairs.end(),
+        [&](const PairInfo& pair)
+        {
+            size_t idx = static_cast<size_t>(&pair - pairs.data());
 
             // Compute relative pose: srcToTgt = poses[j]^{-1} * poses[i]
-            Eigen::Isometry3d poseI = pose7ToIsometry(poses[i]);
-            Eigen::Isometry3d poseJ = pose7ToIsometry(poses[j]);
+            Eigen::Isometry3d poseI = pose7ToIsometry(poses[pair.i]);
+            Eigen::Isometry3d poseJ = pose7ToIsometry(poses[pair.j]);
             Eigen::Isometry3d srcToTgt = poseJ.inverse() * poseI;
 
-            // Forward edge: i -> j
-            auto corr_ij = computeBidirectionalCorrs(
-                grids[i], grids[j], rayDirF, srcToTgt, maxDistance);
+            pairCorrs[idx] = computeBidirectionalCorrs(
+                grids[pair.i], grids[pair.j], rayDirF, srcToTgt, maxDistance,
+                subsampleX, subsampleY);
+        });
 
-            if (static_cast<int>(corr_ij.forward.size()) >= minMatch)
-            {
-                edges.push_back({static_cast<int>(i), static_cast<int>(j),
-                                 std::move(corr_ij.forward)});
-            }
+    // Collect edges sequentially
+    for (size_t idx = 0; idx < pairs.size(); idx++)
+    {
+        const auto& pair = pairs[idx];
+        auto& corr = pairCorrs[idx];
 
-            // Reverse edge: j -> i
-            if (static_cast<int>(corr_ij.reverse.size()) >= minMatch)
-            {
-                edges.push_back({static_cast<int>(j), static_cast<int>(i),
-                                 std::move(corr_ij.reverse)});
-            }
+        if (static_cast<int>(corr.forward.size()) >= minMatch)
+        {
+            edges.push_back({static_cast<int>(pair.i), static_cast<int>(pair.j),
+                             std::move(corr.forward)});
+        }
 
-            if (verbose && (!corr_ij.forward.empty() || !corr_ij.reverse.empty()))
-            {
-                std::cout << "  Pair (" << i << "," << j << "): "
-                          << corr_ij.forward.size() << " fwd, "
-                          << corr_ij.reverse.size() << " rev\n";
-            }
+        if (static_cast<int>(corr.reverse.size()) >= minMatch)
+        {
+            edges.push_back({static_cast<int>(pair.j), static_cast<int>(pair.i),
+                             std::move(corr.reverse)});
+        }
+
+        if (verbose && (!corr.forward.empty() || !corr.reverse.empty()))
+        {
+            std::cout << "  Pair (" << pair.i << "," << pair.j << "): "
+                      << corr.forward.size() << " fwd, "
+                      << corr.reverse.size() << " rev\n";
         }
     }
 
@@ -131,7 +158,8 @@ MultiViewICPResult runMultiViewICP(
         // Build edges using current poses
         std::vector<Edge> edges = buildEdges(
             grids, currentPoses, params.rayDir,
-            params.maxDistance, params.minMatch, params.verbose);
+            params.maxDistance, params.minMatch,
+            params.subsampleX, params.subsampleY, params.verbose);
 
         size_t totalCorr = 0;
         for (const auto& e : edges)

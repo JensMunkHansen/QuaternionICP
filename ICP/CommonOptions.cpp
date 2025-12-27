@@ -320,6 +320,8 @@ OuterParams commonOptionsToOuterParams(const CommonOptions& opts)
     OuterParams params;
     params.maxIterations = opts.outerIterations;
     params.convergenceTol = opts.rmsTol;
+    params.subsampleX = opts.subsampleX;
+    params.subsampleY = opts.subsampleY;
     params.verbose = opts.verbose;
     return params;
 }

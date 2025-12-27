@@ -1,12 +1,15 @@
+// Standard C++ headers
+#include <iostream>
+#include <random>
+
+// Internal headers
 #include <ICP/CommonOptions.h>
-#include <ICP/TestGridUtils.h>
 #include <ICP/EigenUtils.h>
-#include <ICP/SE3.h>
-#include <ICP/ICPSimple.h>
 #include <ICP/ICPCeres.h>
 #include <ICP/ICPParams.h>
-#include <random>
-#include <iostream>
+#include <ICP/ICPSimple.h>
+#include <ICP/SE3.h>
+#include <ICP/TestGridUtils.h>
 
 using namespace ICP;
 

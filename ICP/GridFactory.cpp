@@ -1,7 +1,9 @@
+// Standard C++ headers
+#include <cmath>
+
+// Internal headers
 #include <ICP/GridFactory.h>
 #include <ICP/TriangulationMarks.h>
-
-#include <cmath>
 
 namespace ICP
 {

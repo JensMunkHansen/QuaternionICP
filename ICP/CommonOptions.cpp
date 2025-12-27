@@ -1,6 +1,9 @@
+// Standard C++ headers
+#include <iostream>
+
+// Internal headers
 #include <ICP/CommonOptions.h>
 #include <ICP/ICPParams.h>
-#include <iostream>
 
 namespace ICP
 {

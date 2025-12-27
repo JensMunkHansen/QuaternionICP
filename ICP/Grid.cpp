@@ -1,16 +1,20 @@
-#include <ICP/Grid.h>
-#include <ICP/TriangulationMarks.h>
-
-#include <GridSearch/GridSearchC.h>
-
-#define TINYEXR_IMPLEMENTATION
-#include <tinyexr.h>
-
+// Standard C++ headers
 #include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
 #include <random>
+
+// tinyexr headers
+#define TINYEXR_IMPLEMENTATION
+#include <tinyexr.h>
+
+// GridSearch headers
+#include <GridSearch/GridSearchC.h>
+
+// Internal headers
+#include <ICP/Grid.h>
+#include <ICP/TriangulationMarks.h>
 
 namespace fs = std::filesystem;
 

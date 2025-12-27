@@ -10,9 +10,12 @@
  *   T_new = T * Exp(delta^)
  */
 
-#include <ICP/EigenTypes.h>
+// Standard C++ headers
 #include <array>
 #include <cmath>
+
+// Internal headers
+#include <ICP/EigenTypes.h>
 
 namespace ICP
 {

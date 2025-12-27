@@ -1,0 +1,27 @@
+# IWYU mapping file for GridSearch
+# Usage: iwyu_tool.py -p build -- -Xiwyu --mapping_file=tools/iwyu.imp
+[
+  # SIMD intrinsics - keep immintrin.h as umbrella header
+  { include: ["<emmintrin.h>", private, "<immintrin.h>", public] },
+  { include: ["<xmmintrin.h>", private, "<immintrin.h>", public] },
+  { include: ["<pmmintrin.h>", private, "<immintrin.h>", public] },
+  { include: ["<smmintrin.h>", private, "<immintrin.h>", public] },
+  { include: ["<avxintrin.h>", private, "<immintrin.h>", public] },
+  { include: ["<avx2intrin.h>", private, "<immintrin.h>", public] },
+  { include: ["<f16cintrin.h>", private, "<immintrin.h>", public] },
+  { include: ["<fmaintrin.h>", private, "<immintrin.h>", public] },
+
+  # Eigen - map internal headers to public Dense header
+  { include: ["@<Eigen/src/.*>", private, "<Eigen/Dense>", public] },
+  { include: ["<Eigen/Core>", public, "<Eigen/Dense>", public] },
+
+  # SIMDMath - keep VectorNTuples.h as main entry point
+  { include: ["@<SIMDMath/.*>", private, "<SIMDMath/VectorNTuples.h>", public] },
+
+  # Catch2 - standard test include
+  { include: ["@<catch2/internal/.*>", private, "<catch2/catch_test_macros.hpp>", public] },
+
+  # C++ standard library mappings
+  { include: ["<bits/std_abs.h>", private, "<cmath>", public] },
+  { include: ["<bits/std_function.h>", private, "<functional>", public] }
+]

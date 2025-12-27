@@ -1,13 +1,17 @@
 #pragma once
 
-#include <ICP/Grid.h>
+// Standard C++ headers
+#include <vector>
 
-#include <GridSearch/GridSearchC.h>
-
+// Eigen headers
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
-#include <vector>
+// GridSearch headers
+#include <GridSearch/GridSearchC.h>
+
+// Internal headers
+#include <ICP/Grid.h>
 
 namespace ICP
 {

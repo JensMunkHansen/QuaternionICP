@@ -3,6 +3,7 @@
  * Eigen type aliases for the ICP namespace.
  */
 
+// Eigen headers
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 

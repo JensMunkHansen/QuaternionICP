@@ -8,25 +8,29 @@
  * Uses ForwardRayCost and ReverseRayCost as Ceres cost functions.
  */
 
-#include <ICP/EigenTypes.h>
-#include <ICP/SE3.h>
-#include <ICP/JacobiansAmbient.h>
-#include <ICP/ICPParams.h>
-#include <ICP/Correspondences.h>
-#include <ICP/Grid.h>
+// Standard C++ headers
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <vector>
 
+// Ceres headers
 #include <ceres/ceres.h>
 #include <ceres/problem.h>
 #include <ceres/solver.h>
 
-#include <sophus/se3.hpp>
+// Sophus headers
 #include <sophus/ceres_manifold.hpp>
+#include <sophus/se3.hpp>
 
-#include <vector>
-#include <cmath>
-#include <limits>
-#include <iostream>
-#include <iomanip>
+// Internal headers
+#include <ICP/Correspondences.h>
+#include <ICP/EigenTypes.h>
+#include <ICP/Grid.h>
+#include <ICP/ICPParams.h>
+#include <ICP/JacobiansAmbient.h>
+#include <ICP/SE3.h>
 
 namespace ICP
 {

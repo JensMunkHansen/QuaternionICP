@@ -1,5 +1,4 @@
 #pragma once
-
 /**
  * @file TriangulationMarks.h
  * @brief C++ wrapper for GridSearch triangulation mark constants.
@@ -7,6 +6,7 @@
  * Wraps the C API from GridSearch/GridSearchTypesC.h with C++ conveniences.
  */
 
+// GridSearch headers
 #include <GridSearch/GridSearchTypesC.h>
 
 namespace TriangulationMarks

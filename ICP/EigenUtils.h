@@ -3,10 +3,13 @@
  * Generic Eigen utilities for random generation and common operations.
  */
 
-#include <ICP/EigenTypes.h>
-#include <random>
+// Standard C++ headers
 #include <cmath>
 #include <numbers>
+#include <random>
+
+// Internal headers
+#include <ICP/EigenTypes.h>
 
 namespace ICP
 {

@@ -3,10 +3,13 @@
  * Utilities for creating and managing test grids.
  */
 
+// Standard C++ headers
+#include <iostream>
+
+// Internal headers
+#include <ICP/CommonOptions.h>
 #include <ICP/Grid.h>
 #include <ICP/GridFactory.h>
-#include <ICP/CommonOptions.h>
-#include <iostream>
 
 namespace ICP
 {

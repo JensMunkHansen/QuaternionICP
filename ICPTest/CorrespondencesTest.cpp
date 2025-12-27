@@ -1,9 +1,12 @@
-#include <ICP/Correspondences.h>
-#include <ICP/GridFactory.h>
+// Standard C++ headers
+#include <cmath>
 
+// Catch2 headers
 #include <catch2/catch_test_macros.hpp>
 
-#include <cmath>
+// Internal headers
+#include <ICP/Correspondences.h>
+#include <ICP/GridFactory.h>
 
 using namespace ICP;
 

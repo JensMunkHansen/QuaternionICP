@@ -1,5 +1,6 @@
 #pragma once
 
+// Internal headers
 #include <ICP/Grid.h>
 
 namespace ICP

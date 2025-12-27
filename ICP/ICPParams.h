@@ -3,7 +3,10 @@
  * ICP parameters and configuration structures.
  */
 
+// Standard C++ headers
 #include <cmath>
+
+// Ceres headers
 #include <ceres/solver.h>
 
 namespace ICP

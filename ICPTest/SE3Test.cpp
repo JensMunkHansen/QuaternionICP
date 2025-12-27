@@ -1,9 +1,12 @@
-#include <ICP/SE3.h>
+// Standard C++ headers
+#include <iostream>
 
+// Catch2 headers
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include <iostream>
+// Internal headers
+#include <ICP/SE3.h>
 
 using namespace ICP;
 using Catch::Matchers::WithinAbs;

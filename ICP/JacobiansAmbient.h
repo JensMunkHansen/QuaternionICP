@@ -10,9 +10,12 @@
  *   b = n^T d  (ray direction dot normal)
  */
 
-#include <ICP/SE3.h>
-#include <ICP/ICPParams.h>
+// Ceres headers
 #include <ceres/sized_cost_function.h>
+
+// Internal headers
+#include <ICP/ICPParams.h>
+#include <ICP/SE3.h>
 
 namespace ICP
 {

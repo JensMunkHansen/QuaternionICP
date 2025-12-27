@@ -1,11 +1,14 @@
-#include <ICP/ICPCeres.h>
-#include <ICP/GridFactory.h>
-#include <ICP/EigenUtils.h>
+// Standard C++ headers
+#include <iostream>
 
+// Catch2 headers
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include <iostream>
+// Internal headers
+#include <ICP/EigenUtils.h>
+#include <ICP/GridFactory.h>
+#include <ICP/ICPCeres.h>
 
 using namespace ICP;
 using Catch::Matchers::WithinAbs;

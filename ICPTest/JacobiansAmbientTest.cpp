@@ -7,13 +7,7 @@
  * - Compare directional derivatives, not full matrices
  */
 
-#include <ICP/JacobiansAmbient.h>
-#include <ICP/EigenUtils.h>
-
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <catch2/generators/catch_generators.hpp>
-
+// Standard C++ headers
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -23,6 +17,15 @@
 #include <sstream>
 #include <type_traits>
 #include <vector>
+
+// Catch2 headers
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+// Internal headers
+#include <ICP/EigenUtils.h>
+#include <ICP/JacobiansAmbient.h>
 
 using namespace ICP;
 using Catch::Matchers::WithinAbs;

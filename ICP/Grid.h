@@ -1,11 +1,13 @@
 #pragma once
 
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-
+// Standard C++ headers
 #include <cstdint>
 #include <string>
 #include <vector>
+
+// Eigen headers
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 
 struct Grid

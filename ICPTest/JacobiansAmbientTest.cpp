@@ -180,16 +180,6 @@ SweepResult sweepEpsilon(const CostFunctor& cost, const double* x,
     return result;
 }
 
-/// Compute analytical 6D jacobian from 7D jacobian using plus jacobian
-Eigen::Matrix<double, 1, 6> jacobian7Dto6D(const double* J7, const double* x)
-{
-    Pose7 pose;
-    pose << x[0], x[1], x[2], x[3], x[4], x[5], x[6];
-    auto P = plusJacobian7x6(pose);
-    Eigen::Map<const Eigen::RowVectorXd> J7_map(J7, 7);
-    return J7_map * P;
-}
-
 /// Get analytical jacobian from a cost functor
 template <typename CostFunctor>
 Eigen::Matrix<double, 1, 6> getAnalyticalJacobian6(const CostFunctor& cost, const double* x)

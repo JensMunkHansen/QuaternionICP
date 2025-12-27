@@ -159,6 +159,24 @@ inline Matrix7x6 plusJacobian7x6(const Pose7& x)
     return J;
 }
 
+/**
+ * Project 7D ambient Jacobian to 6D local (tangent space) Jacobian.
+ *
+ * This performs: J_local = J_ambient @ PlusJacobian(x)
+ *
+ * @param J7 7D ambient Jacobian (1x7 row vector)
+ * @param x  7D pose [qx, qy, qz, qw, tx, ty, tz]
+ * @return 6D local Jacobian (1x6 row vector)
+ */
+inline Eigen::Matrix<double, 1, 6> jacobian7Dto6D(const double* J7, const double* x)
+{
+    Pose7 pose;
+    pose << x[0], x[1], x[2], x[3], x[4], x[5], x[6];
+    auto P = plusJacobian7x6(pose);
+    Eigen::Map<const Eigen::RowVectorXd> J7_map(J7, 7);
+    return J7_map * P;
+}
+
 // -----------------------------
 // Quaternion derivatives (for ambient Jacobians)
 // -----------------------------

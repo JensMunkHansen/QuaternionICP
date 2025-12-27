@@ -89,6 +89,120 @@ struct TwoPoseTestSetup
     }
 };
 
+// ============================================================================
+// Finite difference helpers for two-pose
+// ============================================================================
+
+/// Logarithmic epsilon values for sweep
+std::vector<double> logarithmicEpsilons(int exp_start, int exp_end)
+{
+    std::vector<double> epsilons;
+    for (int e = exp_start; e >= exp_end; --e)
+    {
+        epsilons.push_back(std::pow(10.0, e));
+        epsilons.push_back(3.0 * std::pow(10.0, e - 1));
+    }
+    std::sort(epsilons.begin(), epsilons.end(), std::greater<double>());
+    return epsilons;
+}
+
+/// Epsilon ranges for translation (linear, larger eps is fine) and rotation (curvature, needs smaller eps)
+std::vector<double> translationEpsilons() { return logarithmicEpsilons(-1, -6); }
+std::vector<double> rotationEpsilons() { return logarithmicEpsilons(-4, -10); }
+
+/// Numerical directional derivative using proper SE(3) manifold perturbation.
+/// delta6 = [v_x, v_y, v_z, w_x, w_y, w_z] (translation in body frame, then rotation)
+/// Returns (x_plus, x_minus) pair for central difference
+void perturbPose(const double* x, const Eigen::Matrix<double, 6, 1>& delta6, double eps,
+                 double* x_plus, double* x_minus)
+{
+    Quaternion q(x[3], x[0], x[1], x[2]);  // w, x, y, z constructor
+    q.normalize();
+    Vector3 t(x[4], x[5], x[6]);
+    Matrix3 R = q.toRotationMatrix();
+
+    // Tangent vector components
+    Vector3 v = delta6.head<3>();      // translation (body frame)
+    Vector3 omega = delta6.tail<3>();  // rotation
+
+    // Perturbed rotation: q_± = q * exp(±eps * omega)
+    Quaternion dq_plus = quatExpSO3(eps * omega);
+    Quaternion dq_minus = quatExpSO3(-eps * omega);
+    Quaternion q_plus = q * dq_plus;
+    Quaternion q_minus = q * dq_minus;
+
+    // Perturbed translation: t_± = t ± R * (eps * v)  (body frame)
+    Vector3 t_plus = t + R * (eps * v);
+    Vector3 t_minus = t - R * (eps * v);
+
+    x_plus[0] = q_plus.x(); x_plus[1] = q_plus.y(); x_plus[2] = q_plus.z(); x_plus[3] = q_plus.w();
+    x_plus[4] = t_plus.x(); x_plus[5] = t_plus.y(); x_plus[6] = t_plus.z();
+
+    x_minus[0] = q_minus.x(); x_minus[1] = q_minus.y(); x_minus[2] = q_minus.z(); x_minus[3] = q_minus.w();
+    x_minus[4] = t_minus.x(); x_minus[5] = t_minus.y(); x_minus[6] = t_minus.z();
+}
+
+/// Evaluate residual for two-pose cost function
+template <typename CostFunctor>
+double evaluateResidualTwoPose(const CostFunctor& cost, const double* xA, const double* xB)
+{
+    double const* parameters[2] = {xA, xB};
+    double residual;
+    cost.Evaluate(parameters, &residual, nullptr);
+    return residual;
+}
+
+/// Numerical directional derivative for pose A
+template <typename CostFunctor>
+double numericalDerivativeA(const CostFunctor& cost, const double* xA, const double* xB,
+                            const Eigen::Matrix<double, 6, 1>& delta6, double eps)
+{
+    double xA_plus[7], xA_minus[7];
+    perturbPose(xA, delta6, eps, xA_plus, xA_minus);
+    double r_plus = evaluateResidualTwoPose(cost, xA_plus, xB);
+    double r_minus = evaluateResidualTwoPose(cost, xA_minus, xB);
+    return (r_plus - r_minus) / (2 * eps);
+}
+
+/// Numerical directional derivative for pose B
+template <typename CostFunctor>
+double numericalDerivativeB(const CostFunctor& cost, const double* xA, const double* xB,
+                            const Eigen::Matrix<double, 6, 1>& delta6, double eps)
+{
+    double xB_plus[7], xB_minus[7];
+    perturbPose(xB, delta6, eps, xB_plus, xB_minus);
+    double r_plus = evaluateResidualTwoPose(cost, xA, xB_plus);
+    double r_minus = evaluateResidualTwoPose(cost, xA, xB_minus);
+    return (r_plus - r_minus) / (2 * eps);
+}
+
+/// Result of epsilon sweep
+struct SweepResult
+{
+    double best_eps;
+    double best_df_num;
+    double min_err;
+};
+
+/// Sweep epsilon to find best finite difference approximation
+template <typename DerivFunc>
+SweepResult sweepEpsilon(DerivFunc derivFunc, double df_ana, const std::vector<double>& epsilons)
+{
+    SweepResult result{0, 0, std::numeric_limits<double>::max()};
+    for (double eps : epsilons)
+    {
+        double df_num = derivFunc(eps);
+        double err = std::abs(df_num - df_ana);
+        if (err < result.min_err)
+        {
+            result.min_err = err;
+            result.best_eps = eps;
+            result.best_df_num = df_num;
+        }
+    }
+    return result;
+}
+
 } // namespace
 
 TEST_CASE("ForwardRayCostTwoPose basic evaluation", "[jacobians][two-pose][forward]")
@@ -279,8 +393,259 @@ TEST_CASE("Two-pose jacobians for Python comparison", "[jacobians][two-pose][pyt
                       << J7B[3] << ", " << J7B[4] << ", " << J7B[5] << ", " << J7B[6] << "]");
         WARN("  J7B[0:4] (dqB) = [" << J7B[0] << ", " << J7B[1] << ", " << J7B[2] << ", " << J7B[3] << "]");
         WARN("  J7B[4:7] (dtB) = [" << J7B[4] << ", " << J7B[5] << ", " << J7B[6] << "]");
+    }
 
-        // Print values for manual comparison with Python
-        // Compare these with: python test_two_pose_jacobians.py
+    SECTION("ForwardRayCostTwoPose Consistent")
+    {
+        ForwardRayCostTwoPoseConsistent cost(inputs.pA, inputs.qB, inputs.nB, inputs.dA0, weighting);
+
+        double const* parameters[2] = {inputs.xA, inputs.xB};
+        double residual;
+        double J7A[7], J7B[7];
+        double* jacobians[2] = {J7A, J7B};
+
+        bool ok = cost.Evaluate(parameters, &residual, jacobians);
+        CHECK(ok);
+
+        WARN("=== ForwardRayCostTwoPose Consistent ===");
+        WARN("residual = " << std::setprecision(15) << std::scientific << residual);
+        WARN("J7A = [" << std::setprecision(9) << J7A[0] << ", " << J7A[1] << ", " << J7A[2] << ", "
+                      << J7A[3] << ", " << J7A[4] << ", " << J7A[5] << ", " << J7A[6] << "]");
+        WARN("  J7A[0:4] (dqA) = [" << J7A[0] << ", " << J7A[1] << ", " << J7A[2] << ", " << J7A[3] << "]");
+        WARN("  J7A[4:7] (dtA) = [" << J7A[4] << ", " << J7A[5] << ", " << J7A[6] << "]");
+        WARN("J7B = [" << std::setprecision(9) << J7B[0] << ", " << J7B[1] << ", " << J7B[2] << ", "
+                      << J7B[3] << ", " << J7B[4] << ", " << J7B[5] << ", " << J7B[6] << "]");
+        WARN("  J7B[0:4] (dqB) = [" << J7B[0] << ", " << J7B[1] << ", " << J7B[2] << ", " << J7B[3] << "]");
+        WARN("  J7B[4:7] (dtB) = [" << J7B[4] << ", " << J7B[5] << ", " << J7B[6] << "]");
+    }
+
+    SECTION("ReverseRayCostTwoPose Consistent")
+    {
+        // Use same geometry as forward but swapped roles (ray from B to surface in A)
+        Vector3 pB = inputs.pA;    // Point in frame B
+        Vector3 qA = inputs.qB;    // Surface point in A
+        Vector3 nA = inputs.nB;    // Surface normal in A
+        Vector3 dB0 = inputs.dA0;  // Ray direction in frame B
+
+        ReverseRayCostTwoPoseConsistent cost(pB, qA, nA, dB0, weighting);
+
+        double const* parameters[2] = {inputs.xA, inputs.xB};
+        double residual;
+        double J7A[7], J7B[7];
+        double* jacobians[2] = {J7A, J7B};
+
+        bool ok = cost.Evaluate(parameters, &residual, jacobians);
+        CHECK(ok);
+
+        WARN("=== ReverseRayCostTwoPose Consistent ===");
+        WARN("residual = " << std::setprecision(15) << std::scientific << residual);
+        WARN("J7A = [" << std::setprecision(9) << J7A[0] << ", " << J7A[1] << ", " << J7A[2] << ", "
+                      << J7A[3] << ", " << J7A[4] << ", " << J7A[5] << ", " << J7A[6] << "]");
+        WARN("  J7A[0:4] (dqA) = [" << J7A[0] << ", " << J7A[1] << ", " << J7A[2] << ", " << J7A[3] << "]");
+        WARN("  J7A[4:7] (dtA) = [" << J7A[4] << ", " << J7A[5] << ", " << J7A[6] << "]");
+        WARN("J7B = [" << std::setprecision(9) << J7B[0] << ", " << J7B[1] << ", " << J7B[2] << ", "
+                      << J7B[3] << ", " << J7B[4] << ", " << J7B[5] << ", " << J7B[6] << "]");
+        WARN("  J7B[0:4] (dqB) = [" << J7B[0] << ", " << J7B[1] << ", " << J7B[2] << ", " << J7B[3] << "]");
+        WARN("  J7B[4:7] (dtB) = [" << J7B[4] << ", " << J7B[5] << ", " << J7B[6] << "]");
+    }
+}
+
+TEST_CASE("ForwardRayCostTwoPose Consistent epsilon sweep", "[jacobians][two-pose][consistent][epsilon]")
+{
+    std::mt19937 rng(100);
+    TwoPoseTestSetup setup(rng);
+
+    ForwardRayCostTwoPoseConsistent cost(setup.pA, setup.qB, setup.nB, setup.dA0, setup.weighting);
+
+    // Get analytical jacobians
+    double const* parameters[2] = {setup.xA, setup.xB};
+    double residual;
+    double J7A[7], J7B[7];
+    double* jacobians[2] = {J7A, J7B};
+    cost.Evaluate(parameters, &residual, jacobians);
+
+    // Convert to 6D local jacobians
+    auto J6A = jacobian7Dto6D(J7A, setup.xA);
+    auto J6B = jacobian7Dto6D(J7B, setup.xB);
+
+    auto epsT = translationEpsilons();
+    auto epsR = rotationEpsilons();
+
+    WARN("=== ForwardRayCostTwoPose Consistent Epsilon Sweep ===");
+
+    // Sweep pose A - translation directions
+    WARN("Pose A - Translation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(k) = 1.0;
+        double df_ana = J6A.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeA(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsT);
+
+        WARN("  t[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
+    }
+
+    // Sweep pose A - rotation directions
+    WARN("Pose A - Rotation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(3 + k) = 1.0;
+        double df_ana = J6A.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeA(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsR);
+
+        WARN("  w[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
+    }
+
+    // Sweep pose B - translation directions
+    WARN("Pose B - Translation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(k) = 1.0;
+        double df_ana = J6B.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeB(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsT);
+
+        WARN("  t[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
+    }
+
+    // Sweep pose B - rotation directions
+    WARN("Pose B - Rotation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(3 + k) = 1.0;
+        double df_ana = J6B.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeB(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsR);
+
+        WARN("  w[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
+    }
+}
+
+TEST_CASE("ReverseRayCostTwoPose Consistent epsilon sweep", "[jacobians][two-pose][consistent][epsilon]")
+{
+    std::mt19937 rng(101);
+    TwoPoseTestSetup setup(rng);
+
+    ReverseRayCostTwoPoseConsistent cost(setup.pB, setup.qA, setup.nA, setup.dB0, setup.weighting);
+
+    // Get analytical jacobians
+    double const* parameters[2] = {setup.xA, setup.xB};
+    double residual;
+    double J7A[7], J7B[7];
+    double* jacobians[2] = {J7A, J7B};
+    cost.Evaluate(parameters, &residual, jacobians);
+
+    // Convert to 6D local jacobians
+    auto J6A = jacobian7Dto6D(J7A, setup.xA);
+    auto J6B = jacobian7Dto6D(J7B, setup.xB);
+
+    auto epsT = translationEpsilons();
+    auto epsR = rotationEpsilons();
+
+    WARN("=== ReverseRayCostTwoPose Consistent Epsilon Sweep ===");
+
+    // Sweep pose A - translation directions
+    WARN("Pose A - Translation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(k) = 1.0;
+        double df_ana = J6A.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeA(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsT);
+
+        WARN("  t[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
+    }
+
+    // Sweep pose A - rotation directions
+    WARN("Pose A - Rotation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(3 + k) = 1.0;
+        double df_ana = J6A.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeA(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsR);
+
+        WARN("  w[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
+    }
+
+    // Sweep pose B - translation directions
+    WARN("Pose B - Translation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(k) = 1.0;
+        double df_ana = J6B.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeB(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsT);
+
+        WARN("  t[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
+    }
+
+    // Sweep pose B - rotation directions
+    WARN("Pose B - Rotation:");
+    for (int k = 0; k < 3; ++k)
+    {
+        Eigen::Matrix<double, 6, 1> delta6 = Eigen::Matrix<double, 6, 1>::Zero();
+        delta6(3 + k) = 1.0;
+        double df_ana = J6B.dot(delta6);
+
+        auto derivFunc = [&](double eps) {
+            return numericalDerivativeB(cost, setup.xA, setup.xB, delta6, eps);
+        };
+        auto result = sweepEpsilon(derivFunc, df_ana, epsR);
+
+        WARN("  w[" << k << "]: ana=" << std::setprecision(9) << df_ana
+                    << " FD=" << result.best_df_num
+                    << " err=" << std::scientific << result.min_err
+                    << " best_eps=" << result.best_eps);
     }
 }

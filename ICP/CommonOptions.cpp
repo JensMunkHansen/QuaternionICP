@@ -161,8 +161,8 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     // Session options
     args::Flag useGridPoses(parser, "use-grid-poses",
         "Compute initial alignment from grid poses (T_source * T_target^-1)", {"use-grid-poses"});
-    args::Flag fixFirstPose(parser, "fix-first-pose",
-        "For multi-pose solver: hold first pose fixed", {"fix-first-pose"});
+    args::ValueFlag<bool> fixFirstPose(parser, "bool",
+        "For multi-pose solver: hold first pose fixed (default: true)", {"fix-first-pose"});
 
     // Multi-view memory options
     args::ValueFlag<int> maxCorr(parser, "N", "Max correspondences per edge (0=unlimited)", {"max-corr"});
@@ -284,7 +284,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 
     opts.verbose = verbose;
     opts.useGridPoses = useGridPoses;
-    opts.fixFirstPose = fixFirstPose;
+    if (fixFirstPose) opts.fixFirstPose = args::get(fixFirstPose);
 
     // Multi-view memory options
     if (maxCorr) opts.maxCorrespondences = args::get(maxCorr);

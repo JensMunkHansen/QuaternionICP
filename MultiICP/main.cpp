@@ -41,18 +41,12 @@ int main(int argc, char** argv)
 
         std::cout << "Loaded " << grids.size() << " grids\n";
 
-        // Initialize poses from grid files or identity
-        std::vector<Pose7> initialPoses(grids.size());
-        for (size_t i = 0; i < grids.size(); i++)
+        // grid.pose is already initialized from initialPose in loadFromExr
+        // Reset to identity if not using grid poses
+        if (!opts.useGridPoses)
         {
-            if (opts.useGridPoses)
-            {
-                initialPoses[i] = isometryToPose7(grids[i].pose);
-            }
-            else
-            {
-                initialPoses[i] = identityPose();
-            }
+            for (auto& grid : grids)
+                grid.pose = identityPose();
         }
 
         if (opts.verbose && opts.useGridPoses)
@@ -60,10 +54,39 @@ int main(int argc, char** argv)
             std::cout << "\nInitial poses from grid files:\n";
             for (size_t i = 0; i < grids.size(); i++)
             {
-                std::cout << "  Grid " << i << ": t=[" << initialPoses[i][4] << ", "
-                          << initialPoses[i][5] << ", " << initialPoses[i][6] << "]\n";
+                std::cout << "  Grid " << i << ": t=[" << grids[i].pose[4] << ", "
+                          << grids[i].pose[5] << ", " << grids[i].pose[6] << "]\n";
             }
         }
+
+        // Save ground truth before perturbation (for results comparison)
+        std::vector<Pose7> groundTruthPoses(grids.size());
+        for (size_t i = 0; i < grids.size(); i++)
+            groundTruthPoses[i] = grids[i].pose;
+
+        // Perturb grid.pose directly (except first which is reference)
+        bool hasPerturbation = (opts.rotationNoise > 0.0f || opts.translationNoise > 0.0f);
+        if (hasPerturbation)
+        {
+            std::cout << "\nPerturbing poses (rot=" << opts.rotationNoise
+                      << " deg, trans=" << opts.translationNoise << ")...\n";
+
+            for (size_t i = 1; i < grids.size(); i++)
+            {
+                PerturbationRNGs rngs(static_cast<unsigned int>(i),
+                                      static_cast<unsigned int>(i + 1000),
+                                      static_cast<unsigned int>(i + 2000));
+                if (opts.rotationNoise > 0.0f)
+                    perturbPoseRotation(grids[i].pose, opts.rotationNoise, rngs.rotation);
+                if (opts.translationNoise > 0.0f)
+                    perturbPoseTranslation(grids[i].pose, opts.translationNoise, rngs.translation);
+            }
+        }
+
+        // Save initial (possibly perturbed) poses for results table
+        std::vector<Pose7> initialPoses(grids.size());
+        for (size_t i = 0; i < grids.size(); i++)
+            initialPoses[i] = grids[i].pose;
 
         // Set up multi-view parameters
         MultiViewICPParams params;
@@ -124,9 +147,14 @@ int main(int argc, char** argv)
             std::cout << "\n";
         }
 
+        // Build poses vector from grids for runMultiViewICP
+        std::vector<Pose7> poses(grids.size());
+        for (size_t i = 0; i < grids.size(); i++)
+            poses[i] = grids[i].pose;
+
         // Run multi-view ICP
         std::cout << "\nRunning Multi-View ICP...\n";
-        auto result = runMultiViewICP(grids, initialPoses, params);
+        auto result = runMultiViewICP(grids, poses, params);
 
         // Display results
         std::cout << "\n=== Multi-View ICP Results ===\n";
@@ -148,6 +176,12 @@ int main(int argc, char** argv)
                           << result.poses[i][4] << ", " << result.poses[i][5] << ", "
                           << result.poses[i][6] << "]\n";
             }
+        }
+
+        // Show results table if perturbation was applied
+        if (hasPerturbation)
+        {
+            printResultsTable(result.poses, initialPoses, groundTruthPoses);
         }
     }
     else if (opts.useTestGrid || (!opts.sourceFile.empty() && !opts.targetFile.empty()))
@@ -187,8 +221,8 @@ int main(int argc, char** argv)
         Pose7 poseA, poseB;
         if (opts.useGridPoses)
         {
-            poseA = isometryToPose7(gridA.pose);
-            poseB = isometryToPose7(gridB.pose);
+            poseA = isometryToPose7(gridA.initialPose);
+            poseB = isometryToPose7(gridB.initialPose);
 
             if (opts.verbose)
             {

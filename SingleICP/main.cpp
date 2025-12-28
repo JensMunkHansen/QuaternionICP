@@ -56,7 +56,7 @@ int main(int argc, char** argv)
     if (opts.useGridPoses)
     {
         // Compute initial alignment from grid poses: T_source * T_target^{-1}
-        Eigen::Isometry3d relPose = source.pose * target.pose.inverse();
+        Eigen::Isometry3d relPose = source.initialPose * target.initialPose.inverse();
         initialPose = isometryToPose7(relPose);
 
         if (opts.verbose)

@@ -61,7 +61,7 @@ bool Grid::loadFromExr(const std::string& filepath, bool loadColors)
                         m(r, c) = static_cast<double>(mat[r * 4 + c]);
                     }
                 }
-                pose = Eigen::Isometry3d(m);
+                initialPose = Eigen::Isometry3d(m);
             }
         }
     }
@@ -161,6 +161,14 @@ bool Grid::loadFromExr(const std::string& filepath, bool loadColors)
 
     FreeEXRImage(&image);
     FreeEXRHeader(&header);
+
+    // Initialize pose (Pose7) from initialPose (Isometry3d)
+    Eigen::Quaterniond q(initialPose.rotation());
+    q.normalize();
+    pose << q.x(), q.y(), q.z(), q.w(),
+            initialPose.translation().x(),
+            initialPose.translation().y(),
+            initialPose.translation().z();
 
     return true;
 }
@@ -302,8 +310,8 @@ void Grid::showInfo() const
           verticesAOS[width * 3 + 1], verticesAOS[width * 3 + 2]);
     }
 
-    Eigen::Matrix4d m = pose.matrix();
-    std::printf("  Pose matrix:\n");
+    Eigen::Matrix4d m = initialPose.matrix();
+    std::printf("  Initial pose matrix:\n");
     for (int r = 0; r < 4; r++)
     {
         std::printf("    [%.6f, %.6f, %.6f, %.6f]\n", m(r, 0), m(r, 1), m(r, 2), m(r, 3));
@@ -365,12 +373,29 @@ void Grid::perturbPose(double rotationDeg, double translationUnits, unsigned int
     perturbation.linear() = rotation.toRotationMatrix();
     perturbation.translation() = translation;
 
-    pose = perturbation * pose;
+    // Convert Pose7 to Isometry3d, perturb, convert back
+    Eigen::Quaterniond q(pose[3], pose[0], pose[1], pose[2]);
+    Eigen::Vector3d t(pose[4], pose[5], pose[6]);
+    Eigen::Isometry3d currentPose = Eigen::Isometry3d::Identity();
+    currentPose.linear() = q.toRotationMatrix();
+    currentPose.translation() = t;
+
+    Eigen::Isometry3d newPose = perturbation * currentPose;
+    Eigen::Quaterniond qNew(newPose.rotation());
+    qNew.normalize();
+    pose << qNew.x(), qNew.y(), qNew.z(), qNew.w(),
+            newPose.translation().x(), newPose.translation().y(), newPose.translation().z();
 }
 
 Grid::AABB Grid::computeWorldAABB() const
 {
-    return computeWorldAABB(pose);
+    // Convert Pose7 to Isometry3d
+    Eigen::Quaterniond q(pose[3], pose[0], pose[1], pose[2]);
+    Eigen::Vector3d t(pose[4], pose[5], pose[6]);
+    Eigen::Isometry3d worldPose = Eigen::Isometry3d::Identity();
+    worldPose.linear() = q.toRotationMatrix();
+    worldPose.translation() = t;
+    return computeWorldAABB(worldPose);
 }
 
 Grid::AABB Grid::computeWorldAABB(const Eigen::Isometry3d& worldPose) const

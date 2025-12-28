@@ -76,6 +76,16 @@ std::vector<Edge> buildEdges(
     // Pre-allocate storage for parallel results (one per pair)
     std::vector<BidirectionalCorrs> pairCorrs(pairs.size());
 
+    // Sort correspondences by quality: |n·d| descending (higher = more perpendicular = better)
+    auto sortByQuality = [&rayDirF](std::vector<Correspondence>& corrs)
+    {
+        std::sort(corrs.begin(), corrs.end(),
+            [&rayDirF](const Correspondence& a, const Correspondence& b) {
+                return std::abs(a.tgtNormal.dot(rayDirF)) >
+                       std::abs(b.tgtNormal.dot(rayDirF));
+            });
+    };
+
     // Compute correspondences in parallel - each thread writes to its own slot
     std::for_each(std::execution::par, pairs.begin(), pairs.end(),
         [&](const PairInfo& pair)
@@ -90,6 +100,10 @@ std::vector<Edge> buildEdges(
             pairCorrs[idx] = computeBidirectionalCorrs(
                 grids[pair.i], grids[pair.j], rayDirF, srcToTgt, maxDistance,
                 subsampleX, subsampleY);
+
+            // Sort by quality (best correspondences first)
+            sortByQuality(pairCorrs[idx].forward);
+            sortByQuality(pairCorrs[idx].reverse);
         });
 
     // Collect edges sequentially
@@ -98,7 +112,7 @@ std::vector<Edge> buildEdges(
         const auto& pair = pairs[idx];
         auto& corr = pairCorrs[idx];
 
-        // Apply maxCorr limit by truncating correspondences
+        // Apply maxCorr limit (now keeps best ones due to sorting)
         if (maxCorr > 0 && corr.forward.size() > static_cast<size_t>(maxCorr))
             corr.forward.resize(maxCorr);
         if (maxCorr > 0 && corr.reverse.size() > static_cast<size_t>(maxCorr))
@@ -348,6 +362,65 @@ void printConnectivityMatrix(const std::vector<std::vector<int>>& counts)
         std::cout << "\n";
     }
     std::cout << "\n";
+}
+
+void printResultsTable(
+    const std::vector<Pose7>& finalPoses,
+    const std::vector<Pose7>& initialPoses,
+    const std::vector<Pose7>& groundTruth)
+{
+    constexpr double RAD_TO_DEG = 180.0 / M_PI;
+    const size_t n = finalPoses.size();
+
+    std::cout << "\nPer-grid errors (vs ground truth):\n";
+    std::cout << "Grid | Init trans | Final trans | Init rot (deg) | Final rot (deg)\n";
+    std::cout << "-----|------------|-------------|----------------|----------------\n";
+
+    double initTotalTrans = 0.0, finalTotalTrans = 0.0;
+    double initTotalRot = 0.0, finalTotalRot = 0.0;
+
+    for (size_t i = 1; i < n; i++)
+    {
+        // Extract translations
+        Vector3 initT(initialPoses[i][4], initialPoses[i][5], initialPoses[i][6]);
+        Vector3 finalT(finalPoses[i][4], finalPoses[i][5], finalPoses[i][6]);
+        Vector3 gtT(groundTruth[i][4], groundTruth[i][5], groundTruth[i][6]);
+
+        double initTransErr = (initT - gtT).norm();
+        double finalTransErr = (finalT - gtT).norm();
+
+        // Extract quaternions and compute rotation errors
+        Quaternion initQ(initialPoses[i][3], initialPoses[i][0],
+                         initialPoses[i][1], initialPoses[i][2]);
+        Quaternion finalQ(finalPoses[i][3], finalPoses[i][0],
+                          finalPoses[i][1], finalPoses[i][2]);
+        Quaternion gtQ(groundTruth[i][3], groundTruth[i][0],
+                       groundTruth[i][1], groundTruth[i][2]);
+
+        // Rotation error = angle of (q_est^-1 * q_gt)
+        Quaternion initRotDiff = initQ.conjugate() * gtQ;
+        Quaternion finalRotDiff = finalQ.conjugate() * gtQ;
+        double initRotErr = Eigen::AngleAxisd(initRotDiff).angle() * RAD_TO_DEG;
+        double finalRotErr = Eigen::AngleAxisd(finalRotDiff).angle() * RAD_TO_DEG;
+
+        std::cout << std::setw(4) << i << " | "
+                  << std::setw(10) << std::fixed << std::setprecision(6) << initTransErr << " | "
+                  << std::setw(11) << finalTransErr << " | "
+                  << std::setw(14) << std::setprecision(4) << initRotErr << " | "
+                  << std::setw(14) << finalRotErr << "\n";
+
+        initTotalTrans += initTransErr;
+        finalTotalTrans += finalTransErr;
+        initTotalRot += initRotErr;
+        finalTotalRot += finalRotErr;
+    }
+
+    std::cout << "-----|------------|-------------|----------------|----------------\n";
+    std::cout << " SUM | "
+              << std::setw(10) << std::fixed << std::setprecision(6) << initTotalTrans << " | "
+              << std::setw(11) << finalTotalTrans << " | "
+              << std::setw(14) << std::setprecision(4) << initTotalRot << " | "
+              << std::setw(14) << finalTotalRot << "\n";
 }
 
 } // namespace ICP

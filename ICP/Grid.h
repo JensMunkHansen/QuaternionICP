@@ -9,6 +9,8 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
+// Pose7: [qx, qy, qz, qw, tx, ty, tz]
+using GridPose7 = Eigen::Matrix<double, 7, 1>;
 
 struct Grid
 {
@@ -16,7 +18,10 @@ struct Grid
     std::vector<float> verticesAOS;
     std::vector<uint8_t> marks;
     std::vector<uint8_t> colorsRGB;  // Colors in AOS format (width * height * 3 bytes: R, G, B)
-    Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
+
+    // Poses: initialPose is loaded from EXR, pose is the current/optimized pose
+    Eigen::Isometry3d initialPose = Eigen::Isometry3d::Identity();
+    GridPose7 pose = (GridPose7() << 0, 0, 0, 1, 0, 0, 0).finished();  // Identity: quat(0,0,0,1), t(0,0,0)
 
     int width = 0;
     int height = 0;
@@ -125,8 +130,8 @@ struct Grid
     int nRows() const { return height; }
     int nCols() const { return width; }
 
-    // Direction is the z-axis of the pose (third column of rotation matrix)
-    Eigen::Vector3f direction() const { return pose.rotation().col(2).cast<float>(); }
+    // Direction is the z-axis of the initial pose (third column of rotation matrix)
+    Eigen::Vector3f direction() const { return initialPose.rotation().col(2).cast<float>(); }
 
     // Grid spacing (assumes rectilinear grid)
     float dx() const;

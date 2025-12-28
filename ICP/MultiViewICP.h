@@ -47,7 +47,7 @@ struct MultiViewICPParams
     int subsampleY = 1;           // Y subsampling stride
 
     // Memory limits (0 = unlimited)
-    int maxCorrespondences = 0;   // Max correspondences per edge
+    int maxCorrespondences = 200; // Max correspondences per edge
     int maxNeighbors = 0;         // Max neighbors per grid
 
     // Geometry weighting
@@ -147,5 +147,20 @@ std::vector<std::vector<int>> buildCorrespondenceMatrix(
  * @param counts NxN matrix of correspondence counts
  */
 void printConnectivityMatrix(const std::vector<std::vector<int>>& counts);
+
+/**
+ * Print per-grid results table comparing initial and final errors.
+ *
+ * Shows translation and rotation error for each grid vs ground truth,
+ * comparing initial (perturbed) and final (optimized) poses.
+ *
+ * @param finalPoses     Final optimized poses
+ * @param initialPoses   Initial (perturbed) poses before ICP
+ * @param groundTruth    Ground truth poses
+ */
+void printResultsTable(
+    const std::vector<Pose7>& finalPoses,
+    const std::vector<Pose7>& initialPoses,
+    const std::vector<Pose7>& groundTruth);
 
 } // namespace ICP

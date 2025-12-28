@@ -42,7 +42,7 @@ struct CommonOptions
 
     // Session options
     bool useGridPoses = false;  // Use grid poses as initial alignment
-    bool fixFirstPose = false;  // For multi-pose solver: hold first pose fixed
+    bool fixFirstPose = true;   // For multi-pose solver: hold first pose fixed
 
     // Multi-view memory options
     int maxCorrespondences = 200; // Max correspondences per edge (0 = unlimited)

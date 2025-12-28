@@ -142,8 +142,7 @@ std::vector<Edge> buildEdges(
 }
 
 MultiViewICPResult runMultiViewICP(
-    const std::vector<Grid>& grids,
-    const std::vector<Pose7>& initialPoses,
+    std::vector<Grid>& grids,
     const MultiViewICPParams& params)
 {
     MultiViewICPResult result;
@@ -155,19 +154,13 @@ MultiViewICPResult runMultiViewICP(
         return result;
     }
 
-    if (initialPoses.size() != numGrids)
-    {
-        std::cerr << "runMultiViewICP: poses size mismatch\n";
-        return result;
-    }
-
-    // Convert Pose7 to Sophus::SE3d for Ceres optimization
+    // Convert grid.pose (Pose7) to Sophus::SE3d for Ceres optimization
     std::vector<Sophus::SE3d> poses(numGrids);
     for (size_t i = 0; i < numGrids; i++)
     {
-        Quaternion q(initialPoses[i][3], initialPoses[i][0],
-                     initialPoses[i][1], initialPoses[i][2]);
-        Vector3 t(initialPoses[i][4], initialPoses[i][5], initialPoses[i][6]);
+        const auto& p = grids[i].pose;
+        Quaternion q(p[3], p[0], p[1], p[2]);
+        Vector3 t(p[4], p[5], p[6]);
         poses[i] = Sophus::SE3d(q, t);
     }
 
@@ -314,13 +307,12 @@ MultiViewICPResult runMultiViewICP(
         }
     }
 
-    // Convert final poses back to Pose7
-    result.poses.resize(numGrids);
+    // Write final poses back to grids
     for (size_t i = 0; i < numGrids; i++)
     {
         Quaternion q = poses[i].unit_quaternion();
         Vector3 t = poses[i].translation();
-        result.poses[i] << q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z();
+        grids[i].pose << q.x(), q.y(), q.z(), q.w(), t.x(), t.y(), t.z();
     }
 
     return result;

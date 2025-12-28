@@ -147,14 +147,9 @@ int main(int argc, char** argv)
             std::cout << "\n";
         }
 
-        // Build poses vector from grids for runMultiViewICP
-        std::vector<Pose7> poses(grids.size());
-        for (size_t i = 0; i < grids.size(); i++)
-            poses[i] = grids[i].pose;
-
-        // Run multi-view ICP
+        // Run multi-view ICP (optimizes grids[i].pose in place)
         std::cout << "\nRunning Multi-View ICP...\n";
-        auto result = runMultiViewICP(grids, poses, params);
+        auto result = runMultiViewICP(grids, params);
 
         // Display results
         std::cout << "\n=== Multi-View ICP Results ===\n";
@@ -166,22 +161,26 @@ int main(int argc, char** argv)
         if (opts.verbose)
         {
             std::cout << "\nFinal poses:\n";
-            for (size_t i = 0; i < result.poses.size(); i++)
+            for (size_t i = 0; i < grids.size(); i++)
             {
-                Quaternion q(result.poses[i][3], result.poses[i][0],
-                             result.poses[i][1], result.poses[i][2]);
+                Quaternion q(grids[i].pose[3], grids[i].pose[0],
+                             grids[i].pose[1], grids[i].pose[2]);
                 Eigen::AngleAxisd aa(q);
                 std::cout << "  Grid " << i << ": rot=" << std::fixed << std::setprecision(2)
                           << (aa.angle() * 180.0 / M_PI) << " deg, t=["
-                          << result.poses[i][4] << ", " << result.poses[i][5] << ", "
-                          << result.poses[i][6] << "]\n";
+                          << grids[i].pose[4] << ", " << grids[i].pose[5] << ", "
+                          << grids[i].pose[6] << "]\n";
             }
         }
 
         // Show results table if perturbation was applied
         if (hasPerturbation)
         {
-            printResultsTable(result.poses, initialPoses, groundTruthPoses);
+            // Extract final poses from grids for results table
+            std::vector<Pose7> finalPoses(grids.size());
+            for (size_t i = 0; i < grids.size(); i++)
+                finalPoses[i] = grids[i].pose;
+            printResultsTable(finalPoses, initialPoses, groundTruthPoses);
         }
     }
     else if (opts.useTestGrid || (!opts.sourceFile.empty() && !opts.targetFile.empty()))

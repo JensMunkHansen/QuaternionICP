@@ -71,10 +71,10 @@ struct MultiViewICPParams
 
 /**
  * Result of multi-view ICP.
+ * Note: Final poses are written directly to grids[i].pose.
  */
 struct MultiViewICPResult
 {
-    std::vector<Pose7> poses;     // Final poses for all grids
     double rms = 0.0;
     int outerIterations = 0;
     int totalInnerIterations = 0;
@@ -117,14 +117,14 @@ std::vector<Edge> buildEdges(
 /**
  * Run multi-view ICP on a set of grids.
  *
- * @param grids         Input grids
- * @param initialPoses  Initial poses for each grid
- * @param params        ICP parameters
- * @return              Result with final poses and statistics
+ * Optimizes grid.pose for each grid in place.
+ *
+ * @param grids   Grids with initial poses in grid.pose (modified in place)
+ * @param params  ICP parameters
+ * @return        Result with statistics (final poses also in grid.pose)
  */
 MultiViewICPResult runMultiViewICP(
-    const std::vector<Grid>& grids,
-    const std::vector<Pose7>& initialPoses,
+    std::vector<Grid>& grids,
     const MultiViewICPParams& params);
 
 /**

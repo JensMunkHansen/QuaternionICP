@@ -338,68 +338,23 @@ OuterParams commonOptionsToOuterParams(const CommonOptions& opts)
     params.convergenceTol = opts.rmsTol;
     params.subsampleX = opts.subsampleX;
     params.subsampleY = opts.subsampleY;
+
+    // Geometry weighting
+    params.weighting.enable_weight = opts.enableIncidenceWeight;
+    params.weighting.enable_gate = opts.enableGrazingGate;
+    params.weighting.tau = opts.incidenceTau;
+
+    // Multi-view options
+    params.maxCorrespondences = opts.maxCorrespondences;
+    params.maxNeighbors = opts.maxNeighbors;
+
     params.verbose = opts.verbose;
     return params;
 }
 
-CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts)
+SessionParams commonOptionsToSessionParams(const CommonOptions& opts)
 {
-    CeresICPOptions ceresOpts;
-
-    // Iteration and tolerance settings
-    ceresOpts.maxIterations = opts.innerIterations;
-    ceresOpts.functionTolerance = opts.translationThreshold;
-    ceresOpts.gradientTolerance = opts.translationThreshold;
-    ceresOpts.parameterTolerance = opts.translationThreshold;
-
-    // Solver type: LM vs GN
-    if (opts.solver == CommonOptions::Solver::LevenbergMarquardt)
-    {
-        ceresOpts.useLM = true;
-        // Convert lambda to trust region radius: radius = 1 / lambda
-        double lambda = opts.lm.lambda;
-        ceresOpts.initialTrustRegionRadius = (lambda > 0) ? 1.0 / lambda : 1e4;
-        ceresOpts.maxTrustRegionRadius = (opts.lm.lambdaMin > 0) ? 1.0 / opts.lm.lambdaMin : 1e8;
-    }
-    else  // Gauss-Newton
-    {
-        ceresOpts.useLM = false;
-        // Large trust region for GN approximation
-        ceresOpts.initialTrustRegionRadius = 1e16;
-        ceresOpts.maxTrustRegionRadius = 1e32;
-    }
-
-    // Linear solver type
-    switch (opts.linearSolver)
-    {
-        case CommonOptions::LinearSolver::DenseQR:
-            ceresOpts.linearSolverType = ceres::DENSE_QR;
-            break;
-        case CommonOptions::LinearSolver::DenseSchur:
-            ceresOpts.linearSolverType = ceres::DENSE_SCHUR;
-            break;
-        case CommonOptions::LinearSolver::SparseSchur:
-            ceresOpts.linearSolverType = ceres::SPARSE_SCHUR;
-            break;
-        case CommonOptions::LinearSolver::IterativeSchur:
-            ceresOpts.linearSolverType = ceres::ITERATIVE_SCHUR;
-            ceresOpts.preconditionerType = ceres::SCHUR_JACOBI;
-            break;
-    }
-
-    // Jacobian policy
-    ceresOpts.jacobianPolicy = (opts.jacobianPolicy == CommonOptions::Jacobian::Consistent)
-        ? JacobianPolicy::Consistent : JacobianPolicy::Simplified;
-
-    ceresOpts.verbose = opts.verbose;
-    ceresOpts.silent = !opts.verbose;
-
-    return ceresOpts;
-}
-
-ICPSessionParams commonOptionsToSessionParams(const CommonOptions& opts)
-{
-    ICPSessionParams params;
+    SessionParams params;
     params.backend = (opts.backend == CommonOptions::Backend::Ceres7)
                          ? SolverBackend::Ceres
                          : SolverBackend::HandRolled;

@@ -18,13 +18,7 @@ namespace ICP
 std::vector<Edge> buildEdges(
     const std::vector<Grid>& grids,
     const std::vector<Pose7>& poses,
-    const Vector3& rayDir,
-    float maxDistance,
-    int minMatch,
-    int subsampleX,
-    int subsampleY,
-    int maxCorr,
-    int maxNeighbors,
+    const OuterParams& outer,
     bool verbose)
 {
     std::vector<Edge> edges;
@@ -42,7 +36,7 @@ std::vector<Edge> buildEdges(
         aabbs.push_back(grids[i].computeWorldAABB(worldPose));
     }
 
-    Eigen::Vector3f rayDirF = rayDir.cast<float>();
+    Eigen::Vector3f rayDirF = outer.rayDir.cast<float>();
 
     // Generate candidate pairs (i, j) where i < j, respecting maxNeighbors limit
     struct PairInfo
@@ -58,13 +52,13 @@ std::vector<Edge> buildEdges(
         for (size_t j = i + 1; j < numGrids; j++)
         {
             // Skip if either grid has reached neighbor limit
-            if (maxNeighbors > 0 &&
-                (neighborCount[i] >= maxNeighbors || neighborCount[j] >= maxNeighbors))
+            if (outer.maxNeighbors > 0 &&
+                (neighborCount[i] >= outer.maxNeighbors || neighborCount[j] >= outer.maxNeighbors))
             {
                 continue;
             }
 
-            if (aabbs[i].overlaps(aabbs[j], maxDistance))
+            if (aabbs[i].overlaps(aabbs[j], outer.maxDist))
             {
                 pairs.push_back({i, j});
                 neighborCount[i]++;
@@ -98,8 +92,8 @@ std::vector<Edge> buildEdges(
             Eigen::Isometry3d srcToTgt = poseJ.inverse() * poseI;
 
             pairCorrs[idx] = computeBidirectionalCorrs(
-                grids[pair.i], grids[pair.j], rayDirF, srcToTgt, maxDistance,
-                subsampleX, subsampleY);
+                grids[pair.i], grids[pair.j], rayDirF, srcToTgt, outer.maxDist,
+                outer.subsampleX, outer.subsampleY);
 
             // Sort by quality (best correspondences first)
             sortByQuality(pairCorrs[idx].forward);
@@ -112,19 +106,21 @@ std::vector<Edge> buildEdges(
         const auto& pair = pairs[idx];
         auto& corr = pairCorrs[idx];
 
-        // Apply maxCorr limit (now keeps best ones due to sorting)
-        if (maxCorr > 0 && corr.forward.size() > static_cast<size_t>(maxCorr))
-            corr.forward.resize(maxCorr);
-        if (maxCorr > 0 && corr.reverse.size() > static_cast<size_t>(maxCorr))
-            corr.reverse.resize(maxCorr);
+        // Apply maxCorrespondences limit (now keeps best ones due to sorting)
+        if (outer.maxCorrespondences > 0 &&
+            corr.forward.size() > static_cast<size_t>(outer.maxCorrespondences))
+            corr.forward.resize(outer.maxCorrespondences);
+        if (outer.maxCorrespondences > 0 &&
+            corr.reverse.size() > static_cast<size_t>(outer.maxCorrespondences))
+            corr.reverse.resize(outer.maxCorrespondences);
 
-        if (static_cast<int>(corr.forward.size()) >= minMatch)
+        if (static_cast<int>(corr.forward.size()) >= outer.minMatch)
         {
             edges.push_back({static_cast<int>(pair.i), static_cast<int>(pair.j),
                              std::move(corr.forward)});
         }
 
-        if (static_cast<int>(corr.reverse.size()) >= minMatch)
+        if (static_cast<int>(corr.reverse.size()) >= outer.minMatch)
         {
             edges.push_back({static_cast<int>(pair.j), static_cast<int>(pair.i),
                              std::move(corr.reverse)});
@@ -143,10 +139,13 @@ std::vector<Edge> buildEdges(
 
 MultiViewICPResult runMultiViewICP(
     std::vector<Grid>& grids,
-    const MultiViewICPParams& params)
+    const SessionParams& session,
+    const OuterParams& outer,
+    const InnerParams& inner)
 {
     MultiViewICPResult result;
     const size_t numGrids = grids.size();
+    const bool verbose = session.verbose || outer.verbose;
 
     if (numGrids < 2)
     {
@@ -164,11 +163,11 @@ MultiViewICPResult runMultiViewICP(
         poses[i] = Sophus::SE3d(q, t);
     }
 
-    double cosAngleThresh = params.weighting.enable_gate ? params.weighting.tau : 0.0;
+    double cosAngleThresh = outer.weighting.enable_gate ? outer.weighting.tau : 0.0;
     double prevRms = std::numeric_limits<double>::max();
 
     // Outer loop
-    for (int outer = 0; outer < params.maxOuterIterations; outer++)
+    for (int outerIter = 0; outerIter < outer.maxIterations; outerIter++)
     {
         result.outerIterations++;
 
@@ -182,23 +181,19 @@ MultiViewICPResult runMultiViewICP(
         }
 
         // Build edges using current poses
-        std::vector<Edge> edges = buildEdges(
-            grids, currentPoses, params.rayDir,
-            params.maxDistance, params.minMatch,
-            params.subsampleX, params.subsampleY,
-            params.maxCorrespondences, params.maxNeighbors, params.verbose);
+        std::vector<Edge> edges = buildEdges(grids, currentPoses, outer, verbose);
 
         size_t totalCorr = 0;
         for (const auto& e : edges)
             totalCorr += e.correspondences.size();
 
-        if (params.verbose)
+        if (verbose)
         {
-            std::cout << "Outer " << outer << ": " << edges.size() << " edges, "
+            std::cout << "Outer " << outerIter << ": " << edges.size() << " edges, "
                       << totalCorr << " correspondences\n";
 
             // Print connectivity matrix on first iteration if small enough
-            if (outer == 0 && numGrids <= 20)
+            if (outerIter == 0 && numGrids <= 20)
             {
                 printConnectivityMatrix(buildCorrespondenceMatrix(edges, numGrids));
             }
@@ -223,7 +218,7 @@ MultiViewICPResult runMultiViewICP(
         }
 
         // Fix first pose (gauge freedom)
-        if (params.fixFirstPose)
+        if (session.fixFirstPose)
         {
             problem.SetParameterBlockConstant(poseData[0]);
         }
@@ -233,20 +228,20 @@ MultiViewICPResult runMultiViewICP(
         {
             for (const auto& c : edge.correspondences)
             {
-                double nDotD = c.tgtNormal.cast<double>().dot(params.rayDir);
+                double nDotD = c.tgtNormal.cast<double>().dot(outer.rayDir);
                 if (std::abs(nDotD) < cosAngleThresh)
                     continue;
 
                 // ForwardRayCostTwoPose: srcPoint in src frame, tgtPoint/tgtNormal in dst frame
                 ceres::CostFunction* costFn = nullptr;
-                if (params.ceresOptions.jacobianPolicy == JacobianPolicy::Consistent)
+                if (inner.jacobianPolicy == JacobianPolicy::Consistent)
                 {
                     costFn = ForwardRayCostTwoPose<RayJacobianConsistent>::Create(
                         c.srcPoint.cast<double>(),
                         c.tgtPoint.cast<double>(),
                         c.tgtNormal.cast<double>(),
-                        params.rayDir,
-                        params.weighting);
+                        outer.rayDir,
+                        outer.weighting);
                 }
                 else
                 {
@@ -254,8 +249,8 @@ MultiViewICPResult runMultiViewICP(
                         c.srcPoint.cast<double>(),
                         c.tgtPoint.cast<double>(),
                         c.tgtNormal.cast<double>(),
-                        params.rayDir,
-                        params.weighting);
+                        outer.rayDir,
+                        outer.weighting);
                 }
                 problem.AddResidualBlock(costFn, nullptr,
                     poseData[edge.srcIdx], poseData[edge.dstIdx]);
@@ -269,9 +264,15 @@ MultiViewICPResult runMultiViewICP(
             break;
         }
 
-        // Configure and solve
-        ceres::Solver::Options options;
-        configureCeresOptions(options, params.ceresOptions);
+        // Configure and solve using canonical params
+        ceres::Solver::Options options = toCeresSolverOptions(inner);
+
+        // Override linear solver for multi-view if using default
+        if (inner.linearSolverType == LinearSolverType::DenseQR)
+        {
+            options.linear_solver_type = ceres::ITERATIVE_SCHUR;
+            options.preconditioner_type = ceres::SCHUR_JACOBI;
+        }
 
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
@@ -282,7 +283,7 @@ MultiViewICPResult runMultiViewICP(
         double rms = std::sqrt(2.0 * summary.final_cost / validCount);
         result.rms = rms;
 
-        if (params.verbose)
+        if (verbose)
         {
             std::cout << "  RMS: " << std::scientific << std::setprecision(6) << rms
                       << ", valid: " << validCount
@@ -291,8 +292,8 @@ MultiViewICPResult runMultiViewICP(
 
         // Check convergence
         double rmsChange = std::abs(prevRms - rms);
-        if (rms < params.convergenceTol ||
-            rmsChange < params.convergenceTol * rms)
+        if (rms < outer.convergenceTol ||
+            rmsChange < outer.convergenceTol * rms)
         {
             result.converged = true;
             break;

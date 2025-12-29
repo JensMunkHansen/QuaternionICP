@@ -72,7 +72,7 @@ struct CeresTwoPoseResult
  * @param rayDirA      Ray direction in grid A frame (typically [0,0,-1])
  * @param rayDirB      Ray direction in grid B frame (typically [0,0,-1])
  * @param weighting    Geometry weighting parameters
- * @param ceresOpts    Ceres solver options
+ * @param ceresOptions Ceres solver options
  * @param fixPoseA     If true, hold pose A fixed (only optimize B)
  * @return             Final poses, RMS, iteration count, convergence status
  */
@@ -84,8 +84,8 @@ CeresTwoPoseInnerResult solveInnerCeresTwoPose(
     const Pose7& initialPoseB,
     const Vector3& rayDirA,
     const Vector3& rayDirB,
-    const GeometryWeighting& weighting = GeometryWeighting(),
-    const CeresICPOptions& ceresOpts = CeresICPOptions(),
+    const GeometryWeighting& weighting,
+    const ceres::Solver::Options& ceresOptions,
     bool fixPoseA = false)
 {
     CeresTwoPoseInnerResult result;
@@ -165,11 +165,8 @@ CeresTwoPoseInnerResult solveInnerCeresTwoPose(
         return result;
     }
 
-    // Configure and solve
-    ceres::Solver::Options options;
-    configureCeresOptions(options, ceresOpts);
-
-    ceres::Solve(options, &problem, &result.summary);
+    // Solve
+    ceres::Solve(ceresOptions, &problem, &result.summary);
 
     result.iterations = result.summary.iterations.size();
     result.converged = (result.summary.termination_type == ceres::CONVERGENCE);
@@ -187,13 +184,6 @@ CeresTwoPoseInnerResult solveInnerCeresTwoPose(
     Vector3 tB_final = poseB.translation();
     result.poseB << qB_final.x(), qB_final.y(), qB_final.z(), qB_final.w(),
                     tB_final.x(), tB_final.y(), tB_final.z();
-
-    if (ceresOpts.verbose)
-    {
-        std::cout << "\t\tCeres TwoPose: " << result.iterations << " iterations, "
-                  << "cost=" << 2.0 * result.summary.final_cost
-                  << ", rms=" << result.rms << "\n";
-    }
 
     return result;
 }
@@ -238,7 +228,7 @@ inline Pose7 computeRelativePose(const Pose7& poseA, const Pose7& poseB)
  * @param initialPoseB  Initial pose for grid B
  * @param rayDir        Ray direction in local frame (typically [0,0,-1])
  * @param weighting     Geometry weighting parameters
- * @param ceresOpts     Ceres solver options
+ * @param innerParams   Inner loop parameters (converted to Ceres options)
  * @param outerParams   Outer loop parameters
  * @param fixPoseA      If true, hold pose A fixed
  * @return              ICP result with final poses and statistics
@@ -250,9 +240,9 @@ CeresTwoPoseResult solveICPCeresTwoPose(
     const Pose7& initialPoseA,
     const Pose7& initialPoseB,
     const Vector3& rayDir,
-    const GeometryWeighting& weighting = GeometryWeighting(),
-    const CeresICPOptions& ceresOpts = CeresICPOptions(),
-    const OuterParams& outerParams = OuterParams(),
+    const GeometryWeighting& weighting,
+    const InnerParams& innerParams,
+    const OuterParams& outerParams,
     bool fixPoseA = false)
 {
     CeresTwoPoseResult result;
@@ -261,6 +251,9 @@ CeresTwoPoseResult solveICPCeresTwoPose(
     result.outer_iterations = 0;
     result.total_inner_iterations = 0;
     result.converged = false;
+
+    // Convert InnerParams to Ceres options once
+    ceres::Solver::Options ceresOptions = toCeresSolverOptions(innerParams);
 
     Pose7 poseA = initialPoseA;
     Pose7 poseB = initialPoseB;
@@ -292,7 +285,7 @@ CeresTwoPoseResult solveICPCeresTwoPose(
             corrs.forward, corrs.reverse,
             poseA, poseB,
             rayDir, rayDir,
-            weighting, ceresOpts, fixPoseA);
+            weighting, ceresOptions, fixPoseA);
 
         poseA = innerResult.poseA;
         poseB = innerResult.poseB;

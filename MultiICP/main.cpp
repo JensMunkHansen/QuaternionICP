@@ -88,38 +88,19 @@ int main(int argc, char** argv)
         for (size_t i = 0; i < grids.size(); i++)
             initialPoses[i] = grids[i].pose;
 
-        // Set up multi-view parameters
-        MultiViewICPParams params;
-        params.rayDir = Vector3(0.0, 0.0, -1.0);
-        params.maxDistance = 100.0f;
-        params.minMatch = 50;
-        params.subsampleX = opts.subsampleX;
-        params.subsampleY = opts.subsampleY;
-        params.maxCorrespondences = opts.maxCorrespondences;
-        params.maxNeighbors = opts.maxNeighbors;
-        params.weighting.enable_weight = opts.enableIncidenceWeight;
-        params.weighting.enable_gate = opts.enableGrazingGate;
-        params.weighting.tau = opts.incidenceTau;
-        params.maxOuterIterations = opts.outerIterations;
-        params.convergenceTol = opts.rmsTol;
-        // Keep default ITERATIVE_SCHUR, but apply user overrides
-        params.ceresOptions.maxIterations = opts.innerIterations;
-        params.ceresOptions.functionTolerance = opts.translationThreshold;
-        params.ceresOptions.verbose = opts.verbose;
-        // Override linear solver only if user specified it
-        if (opts.linearSolver != CommonOptions::LinearSolver::DenseQR)
-        {
-            auto userOpts = commonOptionsToCeresOptions(opts);
-            params.ceresOptions.linearSolverType = userOpts.linearSolverType;
-            params.ceresOptions.preconditionerType = userOpts.preconditionerType;
-        }
-        // Apply jacobian policy
-        params.ceresOptions.jacobianPolicy = (opts.jacobianPolicy == CommonOptions::Jacobian::Consistent)
-            ? JacobianPolicy::Consistent : JacobianPolicy::Simplified;
-        params.fixFirstPose = opts.fixFirstPose;
-        params.verbose = opts.verbose;
+        // Set up parameters using canonical structs
+        SessionParams session = commonOptionsToSessionParams(opts);
+        OuterParams outer = commonOptionsToOuterParams(opts);
+        InnerParams inner = commonOptionsToInnerParams(opts);
 
-        // Display configuration (MultiICP always uses Ceres with ITERATIVE_SCHUR default)
+        // Multi-view uses ITERATIVE_SCHUR by default
+        if (opts.linearSolver == CommonOptions::LinearSolver::DenseQR)
+        {
+            inner.linearSolverType = LinearSolverType::IterativeSchur;
+            inner.preconditionerType = PreconditionerType::SchurJacobi;
+        }
+
+        // Display configuration
         CommonOptions displayOpts = opts;
         displayOpts.backend = CommonOptions::Backend::Ceres7;
         if (opts.linearSolver == CommonOptions::LinearSolver::DenseQR)
@@ -127,29 +108,16 @@ int main(int argc, char** argv)
         printCommonConfig(displayOpts);
         std::cout << "\nMulti-view:\n";
         std::cout << "  Grids: " << grids.size() << "\n";
-        std::cout << "  Min correspondences per edge: " << params.minMatch << "\n";
-        if (params.maxCorrespondences > 0)
-            std::cout << "  Max correspondences per edge: " << params.maxCorrespondences << "\n";
-        if (params.maxNeighbors > 0)
-            std::cout << "  Max neighbors per grid: " << params.maxNeighbors << "\n";
-        std::cout << "  First pose fixed: " << (params.fixFirstPose ? "yes" : "no") << "\n";
-        if (params.ceresOptions.linearSolverType == ceres::ITERATIVE_SCHUR)
-        {
-            std::cout << "  Preconditioner: ";
-            switch (params.ceresOptions.preconditionerType)
-            {
-                case ceres::IDENTITY: std::cout << "IDENTITY"; break;
-                case ceres::JACOBI: std::cout << "JACOBI"; break;
-                case ceres::SCHUR_JACOBI: std::cout << "SCHUR_JACOBI"; break;
-                case ceres::SCHUR_POWER_SERIES_EXPANSION: std::cout << "SCHUR_POWER_SERIES_EXPANSION"; break;
-                default: std::cout << "other"; break;
-            }
-            std::cout << "\n";
-        }
+        std::cout << "  Min correspondences per edge: " << outer.minMatch << "\n";
+        if (outer.maxCorrespondences > 0)
+            std::cout << "  Max correspondences per edge: " << outer.maxCorrespondences << "\n";
+        if (outer.maxNeighbors > 0)
+            std::cout << "  Max neighbors per grid: " << outer.maxNeighbors << "\n";
+        std::cout << "  First pose fixed: " << (session.fixFirstPose ? "yes" : "no") << "\n";
 
         // Run multi-view ICP (optimizes grids[i].pose in place)
         std::cout << "\nRunning Multi-View ICP...\n";
-        auto result = runMultiViewICP(grids, params);
+        auto result = runMultiViewICP(grids, session, outer, inner);
 
         // Display results
         std::cout << "\n=== Multi-View ICP Results ===\n";
@@ -247,15 +215,8 @@ int main(int argc, char** argv)
         }
 
         // Set up parameters
-        CeresICPOptions ceresOpts = commonOptionsToCeresOptions(opts);
+        InnerParams innerParams = commonOptionsToInnerParams(opts);
         OuterParams outerParams = commonOptionsToOuterParams(opts);
-
-        GeometryWeighting weighting;
-        weighting.enable_weight = opts.enableIncidenceWeight;
-        weighting.enable_gate = opts.enableGrazingGate;
-        weighting.tau = opts.incidenceTau;
-
-        Vector3 rayDir(0.0, 0.0, -1.0);
 
         // Display configuration
         std::cout << "\n=== Two-Pose ICP Configuration ===\n";
@@ -268,8 +229,8 @@ int main(int argc, char** argv)
         std::cout << "...\n";
 
         auto result = solveICPCeresTwoPose<RayJacobianSimplified>(
-            gridA, gridB, poseA, poseB, rayDir, weighting, ceresOpts, outerParams,
-            opts.fixFirstPose);
+            gridA, gridB, poseA, poseB, outerParams.rayDir, outerParams.weighting,
+            innerParams, outerParams, opts.fixFirstPose);
 
         // Display results
         std::cout << "\n=== Two-Pose ICP Results ===\n";

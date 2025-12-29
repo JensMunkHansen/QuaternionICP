@@ -33,43 +33,6 @@ struct Edge
 };
 
 /**
- * Parameters for multi-view ICP.
- */
-struct MultiViewICPParams
-{
-    // Ray direction (local frame)
-    Vector3 rayDir{0.0, 0.0, -1.0};
-
-    // Correspondence finding
-    float maxDistance = 10.0f;    // Max ray distance and AABB margin
-    int minMatch = 50;            // Minimum correspondences per edge
-    int subsampleX = 1;           // X subsampling stride
-    int subsampleY = 1;           // Y subsampling stride
-
-    // Memory limits (0 = unlimited)
-    int maxCorrespondences = 200; // Max correspondences per edge
-    int maxNeighbors = 0;         // Max neighbors per grid
-
-    // Geometry weighting
-    GeometryWeighting weighting;
-
-    // Outer loop
-    int maxOuterIterations = 10;
-    double convergenceTol = 1e-9;  // RMS change threshold
-
-    // Inner loop (Ceres) - default to ITERATIVE_SCHUR for multi-view efficiency
-    CeresICPOptions ceresOptions{
-        .linearSolverType = ceres::ITERATIVE_SCHUR,
-        .preconditionerType = ceres::SCHUR_JACOBI
-    };
-
-    // First pose fixed (gauge freedom)
-    bool fixFirstPose = true;
-
-    bool verbose = false;
-};
-
-/**
  * Result of multi-view ICP.
  * Note: Final poses are written directly to grids[i].pose.
  */
@@ -90,28 +53,16 @@ struct MultiViewICPResult
  * 3. Compute reverse correspondences (j → i)
  * 4. Add edges that meet minMatch threshold
  *
- * @param grids       Vector of grids
- * @param poses       Current Pose7 for each grid
- * @param rayDir      Ray direction in local frame
- * @param maxDistance Max ray distance and AABB margin
- * @param minMatch    Minimum correspondences per edge
- * @param subsampleX  X subsampling stride
- * @param subsampleY  Y subsampling stride
- * @param maxCorr     Max correspondences per edge (0=unlimited)
- * @param maxNeighbors Max neighbors per grid (0=unlimited)
- * @param verbose     Print edge info
- * @return            Vector of edges
+ * @param grids   Vector of grids
+ * @param poses   Current Pose7 for each grid
+ * @param outer   Outer loop parameters (rayDir, maxDist, subsampling, etc.)
+ * @param verbose Print edge info
+ * @return        Vector of edges
  */
 std::vector<Edge> buildEdges(
     const std::vector<Grid>& grids,
     const std::vector<Pose7>& poses,
-    const Vector3& rayDir,
-    float maxDistance,
-    int minMatch,
-    int subsampleX = 1,
-    int subsampleY = 1,
-    int maxCorr = 0,
-    int maxNeighbors = 0,
+    const OuterParams& outer,
     bool verbose = false);
 
 /**
@@ -120,12 +71,16 @@ std::vector<Edge> buildEdges(
  * Optimizes grid.pose for each grid in place.
  *
  * @param grids   Grids with initial poses in grid.pose (modified in place)
- * @param params  ICP parameters
+ * @param session Session parameters (fixFirstPose, verbose)
+ * @param outer   Outer loop parameters (correspondences, weighting)
+ * @param inner   Inner loop parameters (solver type, iterations)
  * @return        Result with statistics (final poses also in grid.pose)
  */
 MultiViewICPResult runMultiViewICP(
     std::vector<Grid>& grids,
-    const MultiViewICPParams& params);
+    const SessionParams& session,
+    const OuterParams& outer,
+    const InnerParams& inner);
 
 /**
  * Build correspondence count matrix from edges.

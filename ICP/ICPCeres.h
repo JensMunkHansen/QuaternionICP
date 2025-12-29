@@ -36,82 +36,7 @@
 namespace ICP
 {
 
-/**
- * Convert InnerParams to CeresICPOptions.
- *
- * Maps hand-rolled solver parameters to Ceres-specific options.
- */
-inline CeresICPOptions innerParamsToCeresOptions(const InnerParams& params)
-{
-    CeresICPOptions ceresOpts;
-    ceresOpts.maxIterations = params.maxIterations;
-    ceresOpts.functionTolerance = params.stepTol;
-    ceresOpts.gradientTolerance = params.stepTol;
-    ceresOpts.parameterTolerance = params.stepTol;
-    ceresOpts.verbose = params.verbose;
-    ceresOpts.silent = !params.verbose;
-
-    // Configure based on solver type
-    if (params.solverType == SolverType::LevenbergMarquardt)
-    {
-        ceresOpts.useLM = true;
-        // Convert lambda to trust region radius: mu = 1 / radius, so radius = 1 / lambda
-        double lambda = params.lm.lambda;
-        ceresOpts.initialTrustRegionRadius = (lambda > 0) ? 1.0 / lambda : 1e4;
-
-        // Max radius from lambdaMin: radius_max = 1 / lambda_min
-        ceresOpts.maxTrustRegionRadius = (params.lm.lambdaMin > 0) ? 1.0 / params.lm.lambdaMin : 1e8;
-    }
-    else  // Gauss-Newton
-    {
-        ceresOpts.useLM = false;
-        // Large trust region for GN approximation
-        ceresOpts.initialTrustRegionRadius = 1e16;
-        ceresOpts.maxTrustRegionRadius = 1e32;
-    }
-
-    return ceresOpts;
-}
-
-/**
- * Configure Ceres solver options from ICP options.
- */
-inline void configureCeresOptions(
-    ceres::Solver::Options& options, const CeresICPOptions& icpOptions)
-{
-    options.function_tolerance = icpOptions.functionTolerance;
-    options.gradient_tolerance = icpOptions.gradientTolerance;
-    options.parameter_tolerance = icpOptions.parameterTolerance;
-    options.max_num_iterations = icpOptions.maxIterations;
-    options.linear_solver_type = icpOptions.linearSolverType;
-
-    if (icpOptions.useLM)
-    {
-        options.minimizer_type = ceres::TRUST_REGION;
-        options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-        options.initial_trust_region_radius = icpOptions.initialTrustRegionRadius;
-        options.max_trust_region_radius = icpOptions.maxTrustRegionRadius;
-    }
-    else
-    {
-        // GN approximation: use trust region with very large radius
-        options.minimizer_type = ceres::TRUST_REGION;
-        options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-        options.initial_trust_region_radius = 1e16;
-        options.max_trust_region_radius = 1e32;
-    }
-
-    if (icpOptions.silent)
-    {
-        options.logging_type = ceres::SILENT;
-        options.minimizer_progress_to_stdout = false;
-    }
-    else
-    {
-        options.logging_type = ceres::PER_MINIMIZER_ITERATION;
-        options.minimizer_progress_to_stdout = icpOptions.verbose;
-    }
-}
+// Note: Use toCeresSolverOptions() from ICPParams.h to convert InnerParams to ceres::Solver::Options
 
 /// Sophus SE3 manifold for Ceres
 using SophusSE3Manifold = Sophus::Manifold<Sophus::SE3>;
@@ -159,7 +84,7 @@ CeresInnerSolveResult solveInnerCeres(
     const Pose7& initialPose,
     const Vector3& rayDir,
     const GeometryWeighting& weighting = GeometryWeighting(),
-    const CeresICPOptions& ceresOpts = CeresICPOptions())
+    const InnerParams& innerParams = InnerParams())
 {
     CeresInnerSolveResult result;
     result.iterations = 0;
@@ -224,8 +149,7 @@ CeresInnerSolveResult solveInnerCeres(
     }
 
     // Configure and solve
-    ceres::Solver::Options options;
-    configureCeresOptions(options, ceresOpts);
+    ceres::Solver::Options options = toCeresSolverOptions(innerParams);
 
     ceres::Solve(options, &problem, &result.summary);
 
@@ -244,7 +168,7 @@ CeresInnerSolveResult solveInnerCeres(
 
     result.pose = finalPose;
 
-    if (ceresOpts.verbose)
+    if (innerParams.verbose)
     {
         std::cout << "\t\tCeres: " << result.iterations << " iterations, "
                   << "cost=" << 2.0 * result.summary.final_cost  // Convert from Ceres's 0.5*sum to sum
@@ -273,7 +197,7 @@ CeresICPResult solveICPCeres(
     const Pose7& initialPose,
     const Vector3& rayDir,
     const GeometryWeighting& weighting = GeometryWeighting(),
-    const CeresICPOptions& ceresOpts = CeresICPOptions(),
+    const InnerParams& innerParams = InnerParams(),
     const OuterParams& outerParams = OuterParams())
 {
     CeresICPResult result;
@@ -303,7 +227,7 @@ CeresICPResult solveICPCeres(
 
         // Inner loop with Ceres
         auto innerResult = solveInnerCeres<JacobianPolicy>(
-            corrs.forward, corrs.reverse, pose, rayDir, weighting, ceresOpts);
+            corrs.forward, corrs.reverse, pose, rayDir, weighting, innerParams);
 
         pose = innerResult.pose;
         result.rms = innerResult.rms;

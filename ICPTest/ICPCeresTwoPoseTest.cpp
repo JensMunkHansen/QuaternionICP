@@ -30,15 +30,14 @@ TEST_CASE("Two-pose Ceres solver compiles and runs", "[ceres][twopose]")
 
     Vector3 rayDir(0.0, 0.0, -1.0);
     GeometryWeighting weighting;
-    CeresICPOptions ceresOpts;
-    ceresOpts.verbose = false;
-    ceresOpts.silent = true;
+    InnerParams innerParams;
+    innerParams.verbose = false;
     OuterParams outerParams;
     outerParams.maxIterations = 5;
 
     // Run two-pose solver with A fixed
     auto result = solveICPCeresTwoPose<RayJacobianSimplified>(
-        gridA, gridB, poseA, poseB, rayDir, weighting, ceresOpts, outerParams, true);
+        gridA, gridB, poseA, poseB, rayDir, weighting, innerParams, outerParams, true);
 
     REQUIRE(result.outer_iterations > 0);
     REQUIRE(result.total_inner_iterations > 0);
@@ -70,15 +69,14 @@ TEST_CASE("Two-pose solver converges to identity for identical grids", "[ceres][
 
     Vector3 rayDir(0.0, 0.0, -1.0);
     GeometryWeighting weighting;
-    CeresICPOptions ceresOpts;
-    ceresOpts.verbose = false;
-    ceresOpts.silent = true;
+    InnerParams innerParams;
+    innerParams.verbose = false;
     OuterParams outerParams;
     outerParams.maxIterations = 10;
 
     // Fix pose A, optimize pose B
     auto result = solveICPCeresTwoPose<RayJacobianSimplified>(
-        gridA, gridB, poseA, poseB, rayDir, weighting, ceresOpts, outerParams, true);
+        gridA, gridB, poseA, poseB, rayDir, weighting, innerParams, outerParams, true);
 
     // After convergence, relative pose should be near identity
     Pose7 relPose = computeRelativePose(result.poseA, result.poseB);
@@ -120,15 +118,14 @@ TEST_CASE("Two-pose solver with both poses free", "[ceres][twopose]")
 
     Vector3 rayDir(0.0, 0.0, -1.0);
     GeometryWeighting weighting;
-    CeresICPOptions ceresOpts;
-    ceresOpts.verbose = false;
-    ceresOpts.silent = true;
+    InnerParams innerParams;
+    innerParams.verbose = false;
     OuterParams outerParams;
     outerParams.maxIterations = 10;
 
     // Both poses free
     auto result = solveICPCeresTwoPose<RayJacobianSimplified>(
-        gridA, gridB, poseA, poseB, rayDir, weighting, ceresOpts, outerParams, false);
+        gridA, gridB, poseA, poseB, rayDir, weighting, innerParams, outerParams, false);
 
     // Final relative pose should be near identity
     Pose7 finalRel = computeRelativePose(result.poseA, result.poseB);

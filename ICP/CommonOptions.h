@@ -41,7 +41,7 @@ struct CommonOptions
     std::vector<int> gridIndices;        // Indices to load (empty = all)
 
     // Session options
-    bool useGridPoses = false;  // Use grid poses as initial alignment
+    bool useGridPoses = true;   // Use grid poses as initial alignment
     bool fixFirstPose = true;   // For multi-pose solver: hold first pose fixed
 
     // Multi-view memory options
@@ -84,7 +84,7 @@ struct CommonOptions
         GaussNewton,
         LevenbergMarquardt
     };
-    Solver solver = Solver::GaussNewton;
+    Solver solver = Solver::LevenbergMarquardt;
 
     // Linear solver type for Ceres
     enum class LinearSolver
@@ -147,8 +147,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 // Forward declarations
 struct InnerParams;
 struct OuterParams;
-struct CeresICPOptions;
-struct ICPSessionParams;
+struct SessionParams;
 
 /**
  * Convert CommonOptions to InnerParams.
@@ -161,14 +160,9 @@ InnerParams commonOptionsToInnerParams(const CommonOptions& opts);
 OuterParams commonOptionsToOuterParams(const CommonOptions& opts);
 
 /**
- * Convert CommonOptions to CeresICPOptions.
+ * Convert CommonOptions to SessionParams.
  */
-CeresICPOptions commonOptionsToCeresOptions(const CommonOptions& opts);
-
-/**
- * Convert CommonOptions to ICPSessionParams.
- */
-ICPSessionParams commonOptionsToSessionParams(const CommonOptions& opts);
+SessionParams commonOptionsToSessionParams(const CommonOptions& opts);
 
 /**
  * Print common ICP configuration to stdout.

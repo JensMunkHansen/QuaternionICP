@@ -7,3 +7,6 @@ add_executable(SingleICPMain
 target_link_libraries(SingleICPMain PRIVATE
     ICP
 )
+
+# Create symlink and install shell completion
+sps_args_completion(SingleICPMain)

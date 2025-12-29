@@ -136,7 +136,7 @@ double lineSearch(
     double currentCost,
     const Vector3& rayDir,
     const GeometryWeighting& weighting,
-    const ICPLineSearchParams& params)
+    const LineSearchParams& params)
 {
     double alpha = params.alpha;
 

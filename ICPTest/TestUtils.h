@@ -152,32 +152,27 @@ inline InnerParams lmGainRatio(double lambda = 1e-3, int maxIter = 20, bool verb
     return p;
 }
 
-inline CeresICPOptions ceresLM(double lambda = 1e-3, int maxIter = 20, bool verbose = true)
+inline InnerParams ceresLM(double lambda = 1e-3, int maxIter = 20, bool verbose = true)
 {
-    CeresICPOptions opts;
-    opts.maxIterations = maxIter;
-    opts.functionTolerance = 1e-9;
-    opts.gradientTolerance = 1e-9;
-    opts.parameterTolerance = 1e-9;
-    opts.useLM = true;
-    opts.initialTrustRegionRadius = 1.0 / lambda;
-    opts.maxTrustRegionRadius = 1e10;
-    opts.verbose = verbose;
-    opts.silent = !verbose;
-    return opts;
+    InnerParams p;
+    p.solverType = SolverType::LevenbergMarquardt;
+    p.maxIterations = maxIter;
+    p.translationThreshold = 1e-9;
+    p.rotationThreshold = 1e-9;
+    p.lm.lambda = lambda;
+    p.verbose = verbose;
+    return p;
 }
 
-inline CeresICPOptions ceresGN(int maxIter = 20, bool verbose = true)
+inline InnerParams ceresGN(int maxIter = 20, bool verbose = true)
 {
-    CeresICPOptions opts;
-    opts.maxIterations = maxIter;
-    opts.functionTolerance = 1e-9;
-    opts.gradientTolerance = 1e-9;
-    opts.parameterTolerance = 1e-9;
-    opts.useLM = false;
-    opts.verbose = verbose;
-    opts.silent = !verbose;
-    return opts;
+    InnerParams p;
+    p.solverType = SolverType::GaussNewton;
+    p.maxIterations = maxIter;
+    p.translationThreshold = 1e-9;
+    p.rotationThreshold = 1e-9;
+    p.verbose = verbose;
+    return p;
 }
 
 } // namespace Presets

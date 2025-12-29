@@ -1,6 +1,11 @@
 #pragma once
 /**
  * ICP parameters and configuration structures.
+ *
+ * Three-level hierarchy:
+ *   ICPSessionParams - session-level (backend, grid poses, first pose fixed)
+ *   ICPOuterParams   - outer loop (correspondences, subsampling, weighting)
+ *   ICPInnerParams   - inner loop (solver type, iterations, thresholds)
  */
 
 // Standard C++ headers
@@ -9,60 +14,15 @@
 // Ceres headers
 #include <ceres/solver.h>
 
+// Internal headers
+#include <ICP/EigenTypes.h>
+
 namespace ICP
 {
 
-/**
- * Incidence weighting mode for grazing angle handling.
- */
-enum class WeightingMode
-{
-    Abs,      // weight = |c|
-    SqrtAbs   // weight = sqrt(|c|)
-};
-
-/**
- * Geometry weighting parameters for incidence-based weighting.
- *
- * Controls how grazing angles are handled in ray-projection ICP.
- * When the ray direction is nearly parallel to the surface (small |n^T d|),
- * the correspondence is either down-weighted or rejected entirely.
- */
-struct GeometryWeighting
-{
-    bool enable_weight = true;   // Apply incidence-based weighting
-    bool enable_gate = true;     // Reject correspondences below tau threshold
-    double tau = 0.2;            // Threshold for gating (0.1-0.4 typical)
-    WeightingMode mode = WeightingMode::SqrtAbs;
-
-    /**
-     * Compute incidence weight from denominator c = n^T d.
-     *
-     * @param c  The denominator (dot product of normal and ray direction)
-     * @return   Weight in [0, 1], or 0 if gated out
-     */
-    double weight(double c) const
-    {
-        double ac = std::abs(c);
-        if (enable_gate && ac < tau)
-        {
-            return 0.0;
-        }
-        if (!enable_weight)
-        {
-            return 1.0;
-        }
-        ac = std::max(tau, std::min(1.0, ac));
-        switch (mode)
-        {
-            case WeightingMode::Abs:
-                return ac;
-            case WeightingMode::SqrtAbs:
-                return std::sqrt(ac);
-        }
-        return 1.0;  // fallback
-    }
-};
+// ============================================================================
+// Enums
+// ============================================================================
 
 /**
  * Solver backend selection.
@@ -71,6 +31,15 @@ enum class SolverBackend
 {
     HandRolled,  // Hand-rolled implementation (GN or LM)
     Ceres        // Ceres-based implementation
+};
+
+/**
+ * Inner solver type (GN vs LM).
+ */
+enum class SolverType
+{
+    GaussNewton,
+    LevenbergMarquardt
 };
 
 /**
@@ -83,98 +52,176 @@ enum class JacobianPolicy
 };
 
 /**
- * Inner solver type.
- */
-enum class SolverType
-{
-    GaussNewton,         // Gauss-Newton solver (uses params.damping)
-    LevenbergMarquardt   // Levenberg-Marquardt solver (uses params.lm.lambda, can be fixed or adaptive)
-};
-
-/**
  * Lambda update strategy for Levenberg-Marquardt.
- *
- * Controls how the damping parameter is adjusted based on step quality.
  */
 enum class LMStrategy
 {
-    /// Simple: binary accept/reject with fixed multipliers.
-    /// Accept: lambda *= lambdaDown, Reject: lambda *= lambdaUp
-    Simple,
-
-    /// Gain ratio with Nielsen update (Ceres-style).
-    /// Uses rho = actual_reduction / model_reduction.
-    /// Accept: radius = radius / max(1/3, 1 - (2*rho - 1)^3)
-    /// Reject: radius /= decrease_factor, decrease_factor *= 2
-    GainRatio
+    Simple,     // Binary accept/reject with fixed multipliers
+    GainRatio   // Ceres-style gain ratio with Nielsen update
 };
 
 /**
- * Line search parameters for inner solver.
+ * Linear solver type for Ceres backend.
  */
-struct ICPLineSearchParams
+enum class LinearSolverType
+{
+    DenseQR,         // Default, good for small problems
+    DenseSchur,      // For bundle adjustment style problems
+    SparseSchur,     // Sparse version of Schur
+    IterativeSchur   // Iterative, good for large multi-view problems
+};
+
+/**
+ * Preconditioner type for iterative solvers.
+ */
+enum class PreconditionerType
+{
+    Identity,
+    Jacobi,
+    SchurJacobi
+};
+
+/**
+ * Incidence weighting mode for grazing angle handling.
+ */
+enum class WeightingMode
+{
+    Abs,      // weight = |c|
+    SqrtAbs   // weight = sqrt(|c|)
+};
+
+// ============================================================================
+// Helper structs
+// ============================================================================
+
+/**
+ * Geometry weighting parameters for incidence-based weighting.
+ */
+struct GeometryWeighting
+{
+    bool enable_weight = true;
+    bool enable_gate = true;
+    double tau = 0.2;
+    WeightingMode mode = WeightingMode::SqrtAbs;
+
+    double weight(double c) const
+    {
+        double ac = std::abs(c);
+        if (enable_gate && ac < tau)
+            return 0.0;
+        if (!enable_weight)
+            return 1.0;
+        ac = std::max(tau, std::min(1.0, ac));
+        return (mode == WeightingMode::SqrtAbs) ? std::sqrt(ac) : ac;
+    }
+};
+
+/**
+ * Line search parameters.
+ */
+struct LineSearchParams
 {
     bool enabled = false;
     int maxIterations = 10;
-    double alpha = 1.0;      ///< Initial step size
-    double beta = 0.5;       ///< Step reduction factor
+    double alpha = 1.0;
+    double beta = 0.5;
 };
 
 /**
- * Parameters for inner solver (fixed correspondences).
+ * Levenberg-Marquardt parameters.
+ */
+struct LMParams
+{
+    LMStrategy strategy = LMStrategy::Simple;
+    double lambda = 1e-3;
+    bool fixedLambda = true;
+    double lambdaUp = 10.0;
+    double lambdaDown = 0.1;
+    double lambdaMin = 1e-10;
+    double lambdaMax = 1e10;
+    double minRelativeDecrease = 1e-3;  // For GainRatio strategy
+};
+
+// ============================================================================
+// Main parameter structs
+// ============================================================================
+
+/**
+ * Session-level parameters.
+ *
+ * Controls backend selection and initial pose handling.
+ */
+struct SessionParams
+{
+    SolverBackend backend = SolverBackend::HandRolled;
+    bool useGridPoses = true;
+    bool fixFirstPose = true;
+    bool verbose = false;
+};
+
+/**
+ * Outer loop parameters (correspondence updates).
+ */
+struct OuterParams
+{
+    // Iteration control
+    int maxIterations = 10;
+    double convergenceTol = 1e-9;
+
+    // Correspondence computation
+    Vector3 rayDir{0.0, 0.0, -1.0};
+    float maxDist = 100.0f;
+    int subsampleX = 4;
+    int subsampleY = 4;
+
+    // Geometry weighting
+    GeometryWeighting weighting;
+
+    // Multi-view correspondence limits
+    int minMatch = 50;
+    int maxCorrespondences = 0;  // 0 = unlimited
+    int maxNeighbors = 0;        // 0 = unlimited
+
+    bool verbose = false;
+};
+
+/**
+ * Inner loop parameters (solver iterations).
  */
 struct InnerParams
 {
-    SolverType solverType = SolverType::GaussNewton;  ///< Solver algorithm to use
+    // Solver selection
+    SolverType solverType = SolverType::LevenbergMarquardt;
+
+    // Iteration control
     int maxIterations = 12;
-    double stepTol = 1e-9;  ///< Legacy: single threshold for delta norm
-
-    /// Translation convergence threshold (same units as data).
-    /// Converged when ||delta_translation|| < translationThreshold.
     double translationThreshold = 1e-4;
-
-    /// Rotation convergence threshold (radians).
-    /// Converged when ||delta_rotation|| < rotationThreshold.
-    ///
-    /// Relationship to translation: at characteristic length L from origin,
-    /// rotation θ causes displacement ≈ L*θ. For balanced convergence:
-    ///   rotationThreshold ≈ translationThreshold / characteristicLength
-    ///
-    /// Default: 1e-4 rad ≈ 0.006° ≈ 20 arcsec (assumes L ≈ 1.0)
     double rotationThreshold = 1e-4;
 
-    double damping = 0.0;  ///< Damping for Gauss-Newton (ignored if using LM)
-    bool verbose = false;  ///< Print per-iteration RMS
-    ICPLineSearchParams lineSearch;
+    // GN damping (ignored for LM)
+    double damping = 0.0;
 
-    struct LevenbergMarquardt
-    {
-        LMStrategy strategy = LMStrategy::Simple;  ///< Lambda update strategy
+    // LM parameters
+    LMParams lm;
 
-        double lambda = 1e-3;       ///< Initial/fixed damping parameter
-        bool fixedLambda = true;    ///< If true, use fixed lambda; if false, adapt lambda
-        double lambdaUp = 10.0;     ///< Factor to increase lambda on reject (Simple strategy)
-        double lambdaDown = 0.1;    ///< Factor to decrease lambda on accept (Simple strategy)
-        double lambdaMin = 1e-10;   ///< Minimum lambda
-        double lambdaMax = 1e10;    ///< Maximum lambda
+    // Line search
+    LineSearchParams lineSearch;
 
-        /// Minimum gain ratio (rho) for step acceptance (GainRatio strategy).
-        /// Step accepted if rho > minRelativeDecrease.
-        /// Ceres default: 1e-3
-        double minRelativeDecrease = 1e-3;
-    } lm;
+    // Jacobian policy
+    JacobianPolicy jacobianPolicy = JacobianPolicy::Simplified;
 
-    /**
-     * Factory method for Gauss-Newton with all parameters explicit.
-     * Use this to ensure no parameters are accidentally omitted.
-     */
+    // Ceres-specific (used when backend == Ceres)
+    LinearSolverType linearSolverType = LinearSolverType::DenseQR;
+    PreconditionerType preconditionerType = PreconditionerType::SchurJacobi;
+
+    bool verbose = false;
+
+    // Factory methods
     static InnerParams gaussNewton(
-        int maxIterations,
-        double translationThreshold,
-        double rotationThreshold,
-        double damping = 0.0,
-        bool lineSearchEnabled = false,
-        bool verbose = false)
+        int maxIterations = 12,
+        double translationThreshold = 1e-4,
+        double rotationThreshold = 1e-4,
+        double damping = 0.0)
     {
         InnerParams p;
         p.solverType = SolverType::GaussNewton;
@@ -182,23 +229,15 @@ struct InnerParams
         p.translationThreshold = translationThreshold;
         p.rotationThreshold = rotationThreshold;
         p.damping = damping;
-        p.lineSearch.enabled = lineSearchEnabled;
-        p.verbose = verbose;
         return p;
     }
 
-    /**
-     * Factory method for Levenberg-Marquardt with all parameters explicit.
-     * Use this to ensure no parameters are accidentally omitted.
-     */
     static InnerParams levenbergMarquardt(
-        int maxIterations,
-        double translationThreshold,
-        double rotationThreshold,
-        double lambda,
-        bool adaptiveLambda = true,
-        bool lineSearchEnabled = false,
-        bool verbose = false)
+        int maxIterations = 12,
+        double translationThreshold = 1e-4,
+        double rotationThreshold = 1e-4,
+        double lambda = 1e-3,
+        bool adaptiveLambda = false)
     {
         InnerParams p;
         p.solverType = SolverType::LevenbergMarquardt;
@@ -207,82 +246,255 @@ struct InnerParams
         p.rotationThreshold = rotationThreshold;
         p.lm.lambda = lambda;
         p.lm.fixedLambda = !adaptiveLambda;
-        p.lineSearch.enabled = lineSearchEnabled;
-        p.verbose = verbose;
         return p;
     }
 };
 
-/**
- * Correspondence sampling strategy.
- */
-enum class SamplingMode
-{
-    Fixed,     // Fixed correspondence set throughout optimization
-    Manual,    // Manually controlled sampling
-    Adaptive   // Adaptive sampling based on convergence
-};
+// ============================================================================
+// Ceres conversion (internal use)
+// ============================================================================
 
 /**
- * Parameters for outer loop (correspondence updates).
+ * Convert InnerParams to Ceres solver options.
+ * Used internally by Ceres backend.
  */
-struct OuterParams
+inline ceres::Solver::Options toCeresSolverOptions(const InnerParams& inner)
 {
-    int maxIterations = 6;
-    double convergenceTol = 1e-9;  // Relative RMS change threshold
-    float maxDist = 100.0f;        // Max ray distance for correspondences
+    ceres::Solver::Options options;
 
-    // Subsampling for correspondence computation
-    int subsampleX = 1;            // X stride (1 = no subsampling)
-    int subsampleY = 1;            // Y stride (1 = no subsampling)
+    options.max_num_iterations = inner.maxIterations;
+    options.function_tolerance = inner.translationThreshold;
+    options.gradient_tolerance = inner.translationThreshold;
+    options.parameter_tolerance = inner.translationThreshold;
 
-    bool verbose = false;          // Print per-iteration information
-};
+    // Solver type
+    if (inner.solverType == SolverType::LevenbergMarquardt)
+    {
+        options.minimizer_type = ceres::TRUST_REGION;
+        options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
+        options.initial_trust_region_radius = (inner.lm.lambda > 0) ? 1.0 / inner.lm.lambda : 1e4;
+        options.max_trust_region_radius = (inner.lm.lambdaMin > 0) ? 1.0 / inner.lm.lambdaMin : 1e8;
+    }
+    else
+    {
+        options.minimizer_type = ceres::TRUST_REGION;
+        options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
+        options.initial_trust_region_radius = 1e16;  // Very large = effectively GN
+        options.max_trust_region_radius = 1e32;
+    }
 
-/**
- * Session-level parameters for ICP registration.
- *
- * Controls how grids are loaded and how the initial alignment is computed.
- * These parameters apply to the overall registration session, not individual
- * solver iterations.
- */
-struct ICPSessionParams
+    // Linear solver
+    switch (inner.linearSolverType)
+    {
+        case LinearSolverType::DenseQR:
+            options.linear_solver_type = ceres::DENSE_QR;
+            break;
+        case LinearSolverType::DenseSchur:
+            options.linear_solver_type = ceres::DENSE_SCHUR;
+            break;
+        case LinearSolverType::SparseSchur:
+            options.linear_solver_type = ceres::SPARSE_SCHUR;
+            break;
+        case LinearSolverType::IterativeSchur:
+            options.linear_solver_type = ceres::ITERATIVE_SCHUR;
+            break;
+    }
+
+    // Preconditioner
+    switch (inner.preconditionerType)
+    {
+        case PreconditionerType::Identity:
+            options.preconditioner_type = ceres::IDENTITY;
+            break;
+        case PreconditionerType::Jacobi:
+            options.preconditioner_type = ceres::JACOBI;
+            break;
+        case PreconditionerType::SchurJacobi:
+            options.preconditioner_type = ceres::SCHUR_JACOBI;
+            break;
+    }
+
+    options.logging_type = inner.verbose ? ceres::PER_MINIMIZER_ITERATION : ceres::SILENT;
+    options.minimizer_progress_to_stdout = inner.verbose;
+
+    return options;
+}
+
+// ============================================================================
+// Default Parameter Presets
+// ============================================================================
+// All defaults for each solver mode are grouped here for easy viewing/editing.
+
+namespace Defaults
 {
-    /// Solver backend selection
-    SolverBackend backend = SolverBackend::HandRolled;
 
-    /// If true, compute initial alignment from grid poses: T_source * T_target^{-1}
-    /// If false, start from identity (or user-supplied initial pose)
-    bool useGridPoses = false;
-
-    /// For multi-pose solver: hold first pose fixed (removes gauge freedom)
-    bool fixFirstPose = false;
-
-    /// Verbose output for session-level operations
-    bool verbose = false;
-};
-
-/**
- * Ceres-specific solver options.
- */
-struct CeresICPOptions
+/// Single-pose ICP defaults (one moving grid aligned to fixed target)
+namespace SinglePose
 {
-    int maxIterations = 12;
-    double functionTolerance = 1e-9;
-    double gradientTolerance = 1e-9;
-    double parameterTolerance = 1e-9;
+    inline InnerParams inner()
+    {
+        InnerParams p;
+        p.solverType = SolverType::LevenbergMarquardt;
+        p.maxIterations = 5;
+        p.translationThreshold = 1e-4;
+        p.rotationThreshold = 1e-4;
+        p.damping = 0.0;
 
-    bool useLM = false;  // Use Levenberg-Marquardt (true) or Gauss-Newton (false)
-    double initialTrustRegionRadius = 1e4;
-    double maxTrustRegionRadius = 1e8;
+        p.lm.lambda = 1e-3;
+        p.lm.fixedLambda = true;
+        p.lm.lambdaUp = 10.0;
+        p.lm.lambdaDown = 0.1;
+        p.lm.lambdaMin = 1e-10;
+        p.lm.lambdaMax = 1e10;
 
-    ceres::LinearSolverType linearSolverType = ceres::DENSE_QR;
-    ceres::PreconditionerType preconditionerType = ceres::SCHUR_JACOBI;  // For ITERATIVE_SCHUR
+        p.lineSearch.enabled = false;
+        p.lineSearch.maxIterations = 10;
+        p.lineSearch.alpha = 1.0;
+        p.lineSearch.beta = 0.5;
 
-    JacobianPolicy jacobianPolicy = JacobianPolicy::Simplified;  // Jacobian computation mode
+        p.jacobianPolicy = JacobianPolicy::Simplified;
+        p.linearSolverType = LinearSolverType::DenseQR;
+        p.verbose = false;
+        return p;
+    }
 
-    bool verbose = false;
-    bool silent = false;  // Suppress all output
-};
+    inline OuterParams outer()
+    {
+        OuterParams p;
+        p.maxIterations = 10;
+        p.convergenceTol = 1e-9;
+        p.rayDir = Vector3(0.0, 0.0, -1.0);
+        p.maxDist = 100.0f;
+        p.subsampleX = 4;
+        p.subsampleY = 4;
+
+        p.weighting.enable_weight = true;
+        p.weighting.enable_gate = true;
+        p.weighting.tau = 0.2;
+
+        p.minMatch = 50;
+        p.maxCorrespondences = 0;  // Unlimited for single-pose
+        p.maxNeighbors = 0;
+        p.verbose = false;
+        return p;
+    }
+}
+
+/// Two-pose ICP defaults (two grids optimized simultaneously)
+namespace TwoPose
+{
+    inline InnerParams inner()
+    {
+        InnerParams p;
+        p.solverType = SolverType::LevenbergMarquardt;
+        p.maxIterations = 12;  // More iterations for two-pose
+        p.translationThreshold = 1e-4;
+        p.rotationThreshold = 1e-4;
+        p.damping = 0.0;
+
+        p.lm.lambda = 1e-3;
+        p.lm.fixedLambda = true;
+        p.lm.lambdaUp = 10.0;
+        p.lm.lambdaDown = 0.1;
+        p.lm.lambdaMin = 1e-10;
+        p.lm.lambdaMax = 1e10;
+
+        p.lineSearch.enabled = false;
+        p.lineSearch.maxIterations = 10;
+        p.lineSearch.alpha = 1.0;
+        p.lineSearch.beta = 0.5;
+
+        p.jacobianPolicy = JacobianPolicy::Simplified;
+        p.linearSolverType = LinearSolverType::DenseQR;
+        p.verbose = false;
+        return p;
+    }
+
+    inline OuterParams outer()
+    {
+        OuterParams p;
+        p.maxIterations = 10;
+        p.convergenceTol = 1e-9;
+        p.rayDir = Vector3(0.0, 0.0, -1.0);
+        p.maxDist = 100.0f;
+        p.subsampleX = 4;
+        p.subsampleY = 4;
+
+        p.weighting.enable_weight = true;
+        p.weighting.enable_gate = true;
+        p.weighting.tau = 0.2;
+
+        p.minMatch = 50;
+        p.maxCorrespondences = 0;  // Unlimited for two-pose
+        p.maxNeighbors = 0;
+        p.verbose = false;
+        return p;
+    }
+}
+
+/// Multi-view ICP defaults (many grids optimized together)
+namespace MultiView
+{
+    inline InnerParams inner()
+    {
+        InnerParams p;
+        p.solverType = SolverType::LevenbergMarquardt;
+        p.maxIterations = 20;  // More iterations for larger problem
+        p.translationThreshold = 1e-4;
+        p.rotationThreshold = 1e-4;
+        p.damping = 0.0;
+
+        p.lm.lambda = 1e-3;
+        p.lm.fixedLambda = true;
+        p.lm.lambdaUp = 10.0;
+        p.lm.lambdaDown = 0.1;
+        p.lm.lambdaMin = 1e-10;
+        p.lm.lambdaMax = 1e10;
+
+        p.lineSearch.enabled = false;
+        p.lineSearch.maxIterations = 10;
+        p.lineSearch.alpha = 1.0;
+        p.lineSearch.beta = 0.5;
+
+        p.jacobianPolicy = JacobianPolicy::Simplified;
+        p.linearSolverType = LinearSolverType::IterativeSchur;  // Better for multi-view
+        p.preconditionerType = PreconditionerType::SchurJacobi;
+        p.verbose = false;
+        return p;
+    }
+
+    inline OuterParams outer()
+    {
+        OuterParams p;
+        p.maxIterations = 10;
+        p.convergenceTol = 1e-9;
+        p.rayDir = Vector3(0.0, 0.0, -1.0);
+        p.maxDist = 100.0f;
+        p.subsampleX = 4;
+        p.subsampleY = 4;
+
+        p.weighting.enable_weight = true;
+        p.weighting.enable_gate = true;
+        p.weighting.tau = 0.2;
+
+        p.minMatch = 50;
+        p.maxCorrespondences = 200;  // Limit memory for multi-view
+        p.maxNeighbors = 0;
+        p.verbose = false;
+        return p;
+    }
+
+    inline SessionParams session()
+    {
+        SessionParams p;
+        p.backend = SolverBackend::Ceres;  // Multi-view requires Ceres
+        p.useGridPoses = true;
+        p.fixFirstPose = true;
+        p.verbose = false;
+        return p;
+    }
+}
+
+} // namespace Defaults
 
 } // namespace ICP

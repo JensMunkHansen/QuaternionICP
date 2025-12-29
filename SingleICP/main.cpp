@@ -155,9 +155,8 @@ int main(int argc, char** argv)
             std::cout << "\nRunning ICP (Ceres)...\n";
         }
 
-        CeresICPOptions ceresOpts = commonOptionsToCeresOptions(opts);
         CeresICPResult ceresResult = solveICPCeres(source, target, initialPose, rayDir,
-                                                    weighting, ceresOpts, outerParams);
+                                                    weighting, innerParams, outerParams);
 
         finalPose = ceresResult.pose;
         finalRms = ceresResult.rms;

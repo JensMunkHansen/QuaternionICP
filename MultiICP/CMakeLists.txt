@@ -7,3 +7,6 @@ add_executable(MultiICPMain
 target_link_libraries(MultiICPMain PRIVATE
     ICP
 )
+
+# Create symlink and install shell completion
+sps_args_completion(MultiICPMain)

@@ -175,11 +175,21 @@ InnerSolveResult solveInnerLMGainRatio(
                       << ", delta_norm=" << delta.norm() << "\n";
         }
 
+        // Check for parameter-tolerance convergence BEFORE step acceptance (like Ceres)
+        // This allows termination even if the step would be rejected
+        if (isDeltaConverged(delta, params.translationThreshold, params.rotationThreshold))
+        {
+            result.converged = true;
+            result.pose = pose;
+            return result;
+        }
+
         // Accept step if gain ratio exceeds threshold
         bool step_accepted = (rho > params.lm.minRelativeDecrease);
 
         // Also accept if we're at a minimum (tiny changes)
-        bool at_minimum = (std::abs(actual_reduction) < 1e-12 * current_cost) && (delta.norm() < 1e-6);
+        // Use relative function tolerance like Ceres: |cost_change|/cost < tol
+        bool at_minimum = (std::abs(actual_reduction) < params.translationThreshold * current_cost) && (delta.norm() < 1e-6);
 
         if (step_accepted || at_minimum)
         {
@@ -317,10 +327,20 @@ InnerSolveResult solveInnerLMSimple(
                       << ", delta_norm=" << delta.norm() << "\n";
         }
 
+        // Check for parameter-tolerance convergence BEFORE step acceptance (like Ceres)
+        // This allows termination even if the step would be rejected
+        if (isDeltaConverged(delta, params.translationThreshold, params.rotationThreshold))
+        {
+            result.converged = true;
+            result.pose = pose;
+            return result;
+        }
+
         // Accept step if cost decreases OR if we're at convergence (cost unchanged, small step)
+        // Use relative function tolerance like Ceres: |cost_change|/cost < tol
         double cost_reduction = current_cost - trial_cost;
         bool cost_decreased = trial_cost < current_cost;
-        bool at_minimum = (std::abs(cost_reduction) < 1e-12 * current_cost) && (delta.norm() < 1e-6);
+        bool at_minimum = (std::abs(cost_reduction) < params.translationThreshold * current_cost) && (delta.norm() < 1e-6);
 
         if (cost_decreased || at_minimum)
         {

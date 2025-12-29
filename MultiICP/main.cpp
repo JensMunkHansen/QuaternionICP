@@ -113,6 +113,7 @@ int main(int argc, char** argv)
             std::cout << "  Max correspondences per edge: " << outer.maxCorrespondences << "\n";
         if (outer.maxNeighbors > 0)
             std::cout << "  Max neighbors per grid: " << outer.maxNeighbors << "\n";
+        std::cout << "  Use grid poses: " << (session.useGridPoses ? "yes" : "no") << "\n";
         std::cout << "  First pose fixed: " << (session.fixFirstPose ? "yes" : "no") << "\n";
 
         // Run multi-view ICP (optimizes grids[i].pose in place)

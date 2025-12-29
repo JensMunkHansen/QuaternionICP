@@ -159,8 +159,8 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::ValueFlag<int> subsample(parser, "N", "Subsample both X and Y (default: 4)", {"subsample"});
 
     // Session options
-    args::Flag useGridPoses(parser, "use-grid-poses",
-        "Compute initial alignment from grid poses (T_source * T_target^-1)", {"use-grid-poses"});
+    args::ValueFlag<bool> useGridPoses(parser, "bool",
+        "Use grid poses for initial alignment (default: true)", {"use-grid-poses"});
     args::ValueFlag<bool> fixFirstPose(parser, "bool",
         "For multi-pose solver: hold first pose fixed (default: true)", {"fix-first-pose"});
 
@@ -283,7 +283,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     if (subsampleY) opts.subsampleY = args::get(subsampleY);
 
     opts.verbose = verbose;
-    opts.useGridPoses = useGridPoses;
+    if (useGridPoses) opts.useGridPoses = args::get(useGridPoses);
     if (fixFirstPose) opts.fixFirstPose = args::get(fixFirstPose);
 
     // Multi-view memory options

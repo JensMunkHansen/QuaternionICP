@@ -16,6 +16,7 @@ using namespace ICP;
 int main(int argc, char** argv)
 {
     CommonOptions opts;
+    opts.useGridPoses = false;  // SingleICP default: synthetic grids don't have poses
     if (!parseArgs(argc, argv, opts, "SingleICP - Ray-projection ICP for two grids"))
     {
         return 1;

@@ -378,6 +378,16 @@ namespace SinglePose
         p.verbose = false;
         return p;
     }
+
+    inline SessionParams session()
+    {
+        SessionParams p;
+        p.backend = SolverBackend::HandRolled;
+        p.useGridPoses = false;  // Synthetic grids typically don't have poses
+        p.fixFirstPose = true;
+        p.verbose = false;
+        return p;
+    }
 }
 
 /// Two-pose ICP defaults (two grids optimized simultaneously)

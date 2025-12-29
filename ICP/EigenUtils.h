@@ -89,26 +89,26 @@ inline Vector3 randomVector3(std::mt19937& rng, double scale = 1.0)
 }
 
 /// Identity pose: [qx=0, qy=0, qz=0, qw=1, tx=0, ty=0, tz=0]
-inline Vector7 identityPose()
+inline Pose7 identityPose()
 {
-    Vector7 pose;
+    Pose7 pose;
     pose << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0;
     return pose;
 }
 
 /// Convert Isometry3d to Pose7 [qx, qy, qz, qw, tx, ty, tz]
-inline Vector7 isometryToPose7(const Eigen::Isometry3d& iso)
+inline Pose7 isometryToPose7(const Eigen::Isometry3d& iso)
 {
     Quaternion q(iso.rotation());
     q.normalize();
-    Vector7 pose;
+    Pose7 pose;
     pose << q.x(), q.y(), q.z(), q.w(),
             iso.translation().x(), iso.translation().y(), iso.translation().z();
     return pose;
 }
 
 /// Convert Pose7 [qx, qy, qz, qw, tx, ty, tz] to Isometry3d
-inline Eigen::Isometry3d pose7ToIsometry(const Vector7& pose)
+inline Eigen::Isometry3d pose7ToIsometry(const Pose7& pose)
 {
     Quaternion q(pose[3], pose[0], pose[1], pose[2]);
     q.normalize();
@@ -119,18 +119,18 @@ inline Eigen::Isometry3d pose7ToIsometry(const Vector7& pose)
 }
 
 /// Create pose from translation only (identity rotation)
-inline Vector7 translationPose(double tx, double ty, double tz)
+inline Pose7 translationPose(double tx, double ty, double tz)
 {
-    Vector7 pose;
+    Pose7 pose;
     pose << 0.0, 0.0, 0.0, 1.0, tx, ty, tz;
     return pose;
 }
 
 /// Create pose from axis-angle rotation (no translation)
-inline Vector7 rotationPose(const Vector3& axisAngle)
+inline Pose7 rotationPose(const Vector3& axisAngle)
 {
     double theta = axisAngle.norm();
-    Vector7 pose;
+    Pose7 pose;
     if (theta < 1e-12)
     {
         pose << 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0;
@@ -175,7 +175,7 @@ inline Eigen::Quaterniond perturbRotation(const Eigen::Quaterniond& q, double st
  * @param stddevDeg Standard deviation of rotation noise in degrees
  * @param gen Random number generator
  */
-inline void perturbPoseRotation(Vector7& pose, double stddevDeg, std::mt19937& gen)
+inline void perturbPoseRotation(Pose7& pose, double stddevDeg, std::mt19937& gen)
 {
     if (stddevDeg <= 0.0)
         return;
@@ -194,7 +194,7 @@ inline void perturbPoseRotation(Vector7& pose, double stddevDeg, std::mt19937& g
  * @param stddev Standard deviation of translation noise
  * @param gen Random number generator
  */
-inline void perturbPoseTranslation(Vector7& pose, double stddev, std::mt19937& gen)
+inline void perturbPoseTranslation(Pose7& pose, double stddev, std::mt19937& gen)
 {
     if (stddev <= 0.0)
         return;

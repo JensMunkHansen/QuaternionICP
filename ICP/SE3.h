@@ -86,9 +86,6 @@ inline Matrix3 Vso3(const Vector3& w)
 // SE(3) manifold operations (right-multiplication)
 // -----------------------------
 
-/// SE(3) pose as 7D vector: [qx, qy, qz, qw, tx, ty, tz]
-using Pose7 = Vector7;
-
 /// SE(3) tangent vector: [v_x, v_y, v_z, w_x, w_y, w_z]
 using Tangent6 = Vector6;
 

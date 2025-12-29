@@ -16,8 +16,9 @@ using Vector3 = Eigen::Vector3d;
 using Vector4 = Eigen::Vector4d;
 using VectorX = Eigen::VectorXd;
 using Vector6 = Eigen::Matrix<double, 6, 1>;
-using Vector7 = Eigen::Matrix<double, 7, 1>;
-// using Pose7 = Eigen::Matrix<double, 7, 1>;
+
+/// SE(3) pose as 7D vector: [qx, qy, qz, qw, tx, ty, tz]
+using Pose7 = Eigen::Matrix<double, 7, 1>;
 
 // Matrices
 using Matrix2 = Eigen::Matrix2d;

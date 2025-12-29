@@ -396,16 +396,19 @@ void printCommonConfig(const CommonOptions& opts)
     std::cout << "  Translation threshold: " << opts.translationThreshold << "\n";
     std::cout << "  Rotation threshold: " << opts.rotationThreshold << " rad\n";
 
-    if (opts.lineSearch.enabled && opts.backend == CommonOptions::Backend::HandRolled7D)
+    if (opts.backend == CommonOptions::Backend::HandRolled7D)
     {
-        std::cout << "  Line search: enabled (alpha=" << opts.lineSearch.alpha
-                  << ", beta=" << opts.lineSearch.beta << ")\n";
-    }
+        if (opts.lineSearch.enabled)
+        {
+            std::cout << "  Line search: enabled (alpha=" << opts.lineSearch.alpha
+                      << ", beta=" << opts.lineSearch.beta << ")\n";
+        }
 
-    if (opts.solver == CommonOptions::Solver::LevenbergMarquardt)
-    {
-        std::cout << "  LM lambda: " << opts.lm.lambda
-                  << (opts.lm.fixedLambda ? " (fixed)" : " (adaptive)") << "\n";
+        if (opts.solver == CommonOptions::Solver::LevenbergMarquardt)
+        {
+            std::cout << "  LM lambda: " << opts.lm.lambda
+                      << (opts.lm.fixedLambda ? " (fixed)" : " (adaptive)") << "\n";
+        }
     }
 
     std::cout << "\nGeometry weighting:\n";

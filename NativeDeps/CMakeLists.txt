@@ -100,16 +100,32 @@ if(USE_MKL)
 
   # Determine BLA_VENDOR based on whether threaded MKL is available
   # SPS_MKL_THREADED and IOMP5_LIB_DIR are set by spsMKL.cmake
+  # Use ILP64 (64-bit integers) to match main project
   if(SPS_MKL_THREADED)
-    set(MKL_BLA_VENDOR "Intel10_64lp")  # Threaded
-    message(STATUS "  BLA_VENDOR: ${MKL_BLA_VENDOR} (threaded)")
+    set(MKL_BLA_VENDOR "Intel10_64ilp")  # Threaded ILP64
+    message(STATUS "  BLA_VENDOR: ${MKL_BLA_VENDOR} (threaded, ILP64)")
   else()
-    set(MKL_BLA_VENDOR "Intel10_64lp_seq")  # Sequential
+    set(MKL_BLA_VENDOR "Intel10_64ilp_seq")  # Sequential ILP64
     set(IOMP5_LIB_DIR "")
-    message(STATUS "  BLA_VENDOR: ${MKL_BLA_VENDOR} (sequential)")
+    message(STATUS "  BLA_VENDOR: ${MKL_BLA_VENDOR} (sequential, ILP64)")
   endif()
 
-  set(MKLROOT "$ENV{MKLROOT}")
+  # Get MKLROOT - try multiple sources:
+  # 1. Environment variable (user preference)
+  # 2. MKL_ROOT from find_package(MKL CONFIG) in spsMKL.cmake
+  # 3. Derive from MKL_CORE_LIB path (find_library fallback in spsMKL.cmake)
+  if(DEFINED ENV{MKLROOT})
+    set(MKLROOT "$ENV{MKLROOT}")
+  elseif(MKL_ROOT)
+    # Set by find_package(MKL CONFIG) - oneAPI CMake config
+    set(MKLROOT "${MKL_ROOT}")
+  elseif(MKL_CORE_LIB)
+    # MKL_CORE_LIB is set by sps_find_mkl() via find_library
+    # e.g., /opt/intel/oneapi/mkl/latest/lib/libmkl_core.so -> /opt/intel/oneapi/mkl/latest
+    get_filename_component(_mkl_lib_dir "${MKL_CORE_LIB}" DIRECTORY)
+    get_filename_component(MKLROOT "${_mkl_lib_dir}" DIRECTORY)
+  endif()
+  message(STATUS "  MKLROOT: ${MKLROOT}")
 endif()
 
 #------------------------------------------------------------------------------
@@ -123,10 +139,20 @@ if(USE_TBB)
   message(STATUS "TBB_DIR: ${TBB_DIR}")
 endif()
 
+# Additional RPATH for MKL (if enabled)
+set(_mkl_rpath "")
+if(USE_MKL AND MKLROOT)
+  set(_mkl_rpath "$<SEMICOLON>${MKLROOT}/lib")
+  if(IOMP5_LIB_DIR)
+    set(_mkl_rpath "${_mkl_rpath}$<SEMICOLON>${IOMP5_LIB_DIR}")
+  endif()
+endif()
+
 # Common CMake arguments for all ExternalProject_Add
 set(COMMON_CMAKE_ARGS
   -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
+  -DCMAKE_INSTALL_RPATH=${CMAKE_INSTALL_PREFIX}/lib${_mkl_rpath}
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   -DCMAKE_CXX_STANDARD=17
   -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
@@ -215,15 +241,59 @@ if(USE_SUITESPARSE)
 
   set(SUITESPARSE_CMAKE_ARGS
     ${COMMON_CMAKE_ARGS}
-    -DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX}
     -DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config$<SEMICOLON>amd$<SEMICOLON>colamd$<SEMICOLON>camd$<SEMICOLON>ccolamd$<SEMICOLON>cholmod$<SEMICOLON>spqr
     -DSUITESPARSE_USE_FORTRAN=OFF
     -DBUILD_TESTING=OFF
-    # TODO: To enable MKL for SuiteSparse (CHOLMOD/SPQR), replace Generic with:
-    #   -DBLA_VENDOR=${MKL_BLA_VENDOR}
-    #   "-DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX};${MKLROOT}/lib/cmake"
-    -DBLA_VENDOR=Generic
   )
+  set(SUITESPARSE_CMAKE_CACHE_ARGS "")
+
+  # Use MKL for SuiteSparse if available, otherwise Generic BLAS
+  if(USE_MKL)
+    # SuiteSparse allows bypassing FindBLAS by setting BLAS_LIBRARIES directly
+    # Use cache vars if available (Method 2), otherwise construct from MKLROOT (Method 1)
+    if(MKL_INTEL_ILP64_LIB AND MKL_CORE_LIB)
+      # Method 2: Library paths from find_library in spsMKL.cmake
+      set(_mkl_libs "${MKL_INTEL_ILP64_LIB}" "${MKL_CORE_LIB}")
+      if(SPS_MKL_THREADED AND MKL_INTEL_THREAD_LIB AND IOMP5_LIB)
+        list(APPEND _mkl_libs "${MKL_INTEL_THREAD_LIB}" "${IOMP5_LIB}")
+      elseif(MKL_SEQUENTIAL_LIB)
+        list(APPEND _mkl_libs "${MKL_SEQUENTIAL_LIB}")
+      endif()
+    else()
+      # Method 1: Construct from MKLROOT (oneAPI CMake config)
+      set(_mkl_libs
+        "${MKLROOT}/lib/libmkl_intel_ilp64.so"
+        "${MKLROOT}/lib/libmkl_core.so"
+      )
+      if(SPS_MKL_THREADED)
+        list(APPEND _mkl_libs
+          "${MKLROOT}/lib/libmkl_intel_thread.so"
+          "${IOMP5_LIB_DIR}/libiomp5.so"
+        )
+      else()
+        list(APPEND _mkl_libs "${MKLROOT}/lib/libmkl_sequential.so")
+      endif()
+    endif()
+
+    # Convert to semicolon-separated string for CMake cache arg
+    string(REPLACE ";" "$<SEMICOLON>" _mkl_libs_str "${_mkl_libs}")
+
+    list(APPEND SUITESPARSE_CMAKE_ARGS
+      -DSUITESPARSE_USE_64BIT_BLAS=ON
+    )
+    list(APPEND SUITESPARSE_CMAKE_CACHE_ARGS
+      "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX}"
+      "-DBLAS_LIBRARIES:STRING=${_mkl_libs_str}"
+      "-DLAPACK_LIBRARIES:STRING=${_mkl_libs_str}"
+      "-DBLAS_INCLUDE_DIRS:STRING=${MKLROOT}/include"
+    )
+    message(STATUS "  SuiteSparse BLAS: ${_mkl_libs}")
+  else()
+    list(APPEND SUITESPARSE_CMAKE_ARGS
+      -DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX}
+      -DBLA_VENDOR=Generic
+    )
+  endif()
 
   # Enable CUDA for CHOLMOD if requested
   if(USE_CUDA)
@@ -243,6 +313,7 @@ if(USE_SUITESPARSE)
     UPDATE_COMMAND ""
     DEPENDS        ${SUITESPARSE_DEPENDS}
     CMAKE_ARGS     ${SUITESPARSE_CMAKE_ARGS}
+    CMAKE_CACHE_ARGS ${SUITESPARSE_CMAKE_CACHE_ARGS}
     LOG_BUILD ${EP_LOG_LEVEL}
     LOG_CONFIGURE ${EP_LOG_LEVEL}
     LOG_INSTALL ${EP_LOG_LEVEL}
@@ -310,15 +381,19 @@ if(BUILD_CERES)
   # MKL/LAPACK support
   if(USE_MKL)
     message(STATUS "  Ceres: MKL/LAPACK enabled (${MKL_BLA_VENDOR})")
+    # Build CMAKE_LIBRARY_PATH - include iomp5 dir only if available
+    set(_ceres_lib_path "${MKLROOT}/lib")
+    if(IOMP5_LIB_DIR)
+      set(_ceres_lib_path "${_ceres_lib_path};${IOMP5_LIB_DIR}")
+    endif()
     list(APPEND CERES_CMAKE_ARGS
       -DLAPACK=ON
       -DBLA_VENDOR=${MKL_BLA_VENDOR}
-      -DMKLROOT=${MKLROOT}
     )
     # Use CMAKE_CACHE_ARGS for paths with semicolons (list values)
     list(APPEND CERES_CMAKE_CACHE_ARGS
-      "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX};${MKLROOT}/lib/cmake"
-      "-DCMAKE_LIBRARY_PATH:STRING=${MKLROOT}/lib;${IOMP5_LIB_DIR}"
+      "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX};${MKLROOT}"
+      "-DCMAKE_LIBRARY_PATH:STRING=${_ceres_lib_path}"
     )
   else()
     list(APPEND CERES_CMAKE_ARGS -DLAPACK=OFF)

@@ -1,14 +1,81 @@
-#pragma once
 /**
- * SE(3) and SO(3) utilities for quaternion-based pose representation.
+ * @file SE3.h
+ * @brief SE(3) Lie group utilities for manifold Gauss-Newton optimization.
  *
- * Quaternion convention: Eigen stores [x, y, z, w] internally (coeffs()).
- * SE(3) pose: 7D vector [qx, qy, qz, qw, tx, ty, tz]
- * Tangent space: 6D vector [v_x, v_y, v_z, w_x, w_y, w_z] (translation, rotation)
+ * This header provides the mathematical foundations for SE(3) (Special Euclidean group)
+ * operations used in point cloud registration. The implementation follows the
+ * **right-multiplicative** (body-frame) convention for tangent space updates.
  *
- * Uses right-multiplication (body/moving frame) convention:
- *   T_new = T * Exp(delta^)
+ * @section se3_conventions Conventions
+ *
+ * - Quaternion storage: Eigen internal order `[x, y, z, w]` via `coeffs()`
+ * - SE(3) pose: 7D vector `[qx, qy, qz, qw, tx, ty, tz]`
+ * - Tangent space: 6D vector `[v_x, v_y, v_z, w_x, w_y, w_z]` (translation, rotation)
+ *
+ * @section se3_groups Lie Groups
+ *
+ * @subsection se3_so3 SO(3): Special Orthogonal Group
+ *
+ * SO(3) is the group of 3D rotations:
+ * \f[
+ *   \mathrm{SO}(3) = \{ R \in \mathbb{R}^{3 \times 3} : R^\top R = I, \det(R) = 1 \}
+ * \f]
+ *
+ * @subsection se3_se3 SE(3): Special Euclidean Group
+ *
+ * SE(3) is the group of rigid body transformations:
+ * \f[
+ *   \mathrm{SE}(3) = \left\{ T = \begin{bmatrix} R & \mathbf{t} \\ \mathbf{0}^\top & 1 \end{bmatrix}
+ *   : R \in \mathrm{SO}(3), \mathbf{t} \in \mathbb{R}^3 \right\}
+ * \f]
+ *
+ * @section se3_skew Skew-Symmetric Matrix (Hat Operator)
+ *
+ * The hat operator \f$[\cdot]_\times : \mathbb{R}^3 \to \mathfrak{so}(3)\f$ creates
+ * a skew-symmetric matrix encoding the cross product:
+ * \f[
+ *   [\mathbf{w}]_\times = \begin{bmatrix}
+ *     0 & -w_z & w_y \\
+ *     w_z & 0 & -w_x \\
+ *     -w_y & w_x & 0
+ *   \end{bmatrix}
+ * \f]
+ *
+ * @section se3_expso3 SO(3) Exponential Map (Quaternion Form)
+ *
+ * The unit quaternion corresponding to \f$\exp([\boldsymbol{\phi}]_\times)\f$ is:
+ * \f[
+ *   \mathbf{q} = \begin{bmatrix} \cos(\theta/2) \\ \sin(\theta/2) \hat{\mathbf{a}} \end{bmatrix}
+ * \f]
+ *
+ * where \f$\theta = \|\boldsymbol{\phi}\|\f$ and \f$\hat{\mathbf{a}} = \boldsymbol{\phi}/\theta\f$.
+ *
+ * @section se3_leftjac Left Jacobian of SO(3)
+ *
+ * The left Jacobian \f$V\f$ couples rotation and translation in SE(3):
+ * \f[
+ *   V = I + \frac{1 - \cos\theta}{\theta^2}[\boldsymbol{\phi}]_\times
+ *         + \frac{\theta - \sin\theta}{\theta^3}[\boldsymbol{\phi}]_\times^2
+ * \f]
+ *
+ * @section se3_update Right-Multiplicative Update (Body Frame)
+ *
+ * Pose updates use **right multiplication**:
+ * \f[
+ *   T \leftarrow T \cdot \exp(\widehat{\delta\boldsymbol{\xi}})
+ * \f]
+ *
+ * For a tangent vector \f$\boldsymbol{\xi} = (\mathbf{v}, \boldsymbol{\omega})\f$:
+ * \f[
+ *   R \leftarrow R \cdot \Delta R, \quad
+ *   \mathbf{t} \leftarrow \mathbf{t} + R \cdot V \cdot \mathbf{v}
+ * \f]
+ *
+ * This corresponds to perturbations in the **body/moving frame**, where increments
+ * are expressed relative to the current pose rather than the world frame.
  */
+
+#pragma once
 
 // Standard C++ headers
 #include <array>
@@ -20,7 +87,12 @@
 namespace ICP
 {
 
-/// Small angle threshold for Taylor expansion in SO(3)/SE(3) operations
+/**
+ * @brief Small angle threshold for Taylor expansion in SO(3)/SE(3) operations.
+ *
+ * When \f$\|\boldsymbol{\omega}\| < \epsilon\f$, first-order Taylor expansions
+ * are used to avoid numerical instability in trigonometric functions.
+ */
 constexpr double kSmallAngleThreshold = 1e-12;
 
 // -----------------------------
@@ -28,7 +100,20 @@ constexpr double kSmallAngleThreshold = 1e-12;
 // -----------------------------
 
 /**
- * Skew-symmetric matrix from 3-vector: [w]_x such that [w]_x * v = w x v
+ * @brief Compute the skew-symmetric matrix from a 3D vector.
+ *
+ * Creates the matrix \f$[\mathbf{w}]_\times\f$ such that
+ * \f$[\mathbf{w}]_\times \mathbf{v} = \mathbf{w} \times \mathbf{v}\f$:
+ * \f[
+ *   [\mathbf{w}]_\times = \begin{bmatrix}
+ *     0 & -w_z & w_y \\
+ *     w_z & 0 & -w_x \\
+ *     -w_y & w_x & 0
+ *   \end{bmatrix}
+ * \f]
+ *
+ * @param w Input 3D vector
+ * @return 3x3 skew-symmetric matrix
  */
 inline Matrix3 skew(const Vector3& w)
 {
@@ -40,10 +125,23 @@ inline Matrix3 skew(const Vector3& w)
 }
 
 /**
- * SO(3) exponential map: axis-angle vector -> quaternion.
- * Uses first-order Taylor expansion for small angles.
+ * @brief SO(3) exponential map in quaternion form.
  *
- * Note: Eigen stores quaternion coeffs as [x, y, z, w] internally.
+ * Computes the unit quaternion corresponding to \f$\exp([\boldsymbol{\omega}]_\times)\f$:
+ * \f[
+ *   \mathbf{q} = \begin{bmatrix} w \\ \mathbf{u} \end{bmatrix}
+ *             = \begin{bmatrix} \cos(\theta/2) \\ \sin(\theta/2) \hat{\mathbf{a}} \end{bmatrix}
+ * \f]
+ *
+ * where \f$\theta = \|\boldsymbol{\omega}\|\f$ is the rotation angle and
+ * \f$\hat{\mathbf{a}} = \boldsymbol{\omega}/\theta\f$ is the unit rotation axis.
+ *
+ * For small angles (\f$\theta < 10^{-12}\f$), uses first-order Taylor expansion.
+ *
+ * @note Eigen stores quaternion coeffs as [x, y, z, w] internally.
+ *
+ * @param w Rotation vector (axis-angle representation)
+ * @return Unit quaternion (w, x, y, z)
  */
 inline Quaternion quatExpSO3(const Vector3& w)
 {
@@ -62,11 +160,23 @@ inline Quaternion quatExpSO3(const Vector3& w)
 }
 
 /**
- * Left Jacobian of SO(3).
- * V such that for the SE(3) Plus operation: t_new = t + R @ V @ v
+ * @brief Left Jacobian of SO(3).
  *
- * V = I + B * [w]_x + C * [w]_x^2
- * where B = (1 - cos(th)) / th^2, C = (1 - sin(th)/th) / th^2
+ * Computes the matrix \f$V\f$ used in the SE(3) Plus operation:
+ * \f$\mathbf{t}_{\text{new}} = \mathbf{t} + R \cdot V \cdot \mathbf{v}\f$
+ *
+ * \f[
+ *   V = I + B \cdot [\boldsymbol{\omega}]_\times + C \cdot [\boldsymbol{\omega}]_\times^2
+ * \f]
+ *
+ * where \f$\theta = \|\boldsymbol{\omega}\|\f$ and:
+ * - \f$B = (1 - \cos\theta) / \theta^2\f$
+ * - \f$C = (1 - \sin\theta / \theta) / \theta^2\f$
+ *
+ * For small angles (\f$\theta < 10^{-12}\f$), uses \f$V \approx I + \frac{1}{2}[\boldsymbol{\omega}]_\times\f$.
+ *
+ * @param w Rotation vector
+ * @return 3x3 left Jacobian matrix
  */
 inline Matrix3 Vso3(const Vector3& w)
 {
@@ -90,12 +200,18 @@ inline Matrix3 Vso3(const Vector3& w)
 using Tangent6 = Vector6;
 
 /**
- * SE(3) Plus operation (right-multiplication):
- *   T_new = T * Exp(delta^)
+ * @brief SE(3) Plus operation using right-multiplication.
+ *
+ * Computes \f$T_{\text{new}} = T \cdot \exp(\widehat{\boldsymbol{\xi}})\f$ where
+ * \f$\boldsymbol{\xi} = (\mathbf{v}, \boldsymbol{\omega}) \in \mathbb{R}^6\f$:
+ * \f[
+ *   R \leftarrow R \cdot \Delta R, \quad
+ *   \mathbf{t} \leftarrow \mathbf{t} + R \cdot V \cdot \mathbf{v}
+ * \f]
  *
  * @param x     Current pose [qx, qy, qz, qw, tx, ty, tz]
  * @param delta Tangent increment [v_x, v_y, v_z, w_x, w_y, w_z]
- * @return      Updated pose
+ * @return Updated pose
  */
 inline Pose7 se3Plus(const Pose7& x, const Tangent6& delta)
 {
@@ -124,10 +240,15 @@ inline Pose7 se3Plus(const Pose7& x, const Tangent6& delta)
 }
 
 /**
- * PlusJacobian: d Plus(x, delta) / d delta |_{delta=0}
+ * @brief Jacobian of the Plus operation w.r.t. the tangent increment.
  *
- * Returns 7x6 matrix mapping tangent increments to ambient changes.
- * Used as: J_local = J_ambient @ PlusJacobian
+ * Computes \f$\frac{\partial \text{Plus}(x, \delta)}{\partial \delta}\big|_{\delta=0}\f$.
+ *
+ * Returns a 7x6 matrix mapping tangent increments to ambient (7D) changes.
+ * Used for chain rule: \f$J_{\text{local}} = J_{\text{ambient}} \cdot P\f$
+ *
+ * @param x Current pose [qx, qy, qz, qw, tx, ty, tz]
+ * @return 7x6 Jacobian matrix
  */
 inline Matrix7x6 plusJacobian7x6(const Pose7& x)
 {
@@ -157,9 +278,10 @@ inline Matrix7x6 plusJacobian7x6(const Pose7& x)
 }
 
 /**
- * Project 7D ambient Jacobian to 6D local (tangent space) Jacobian.
+ * @brief Project 7D ambient Jacobian to 6D local (tangent space) Jacobian.
  *
- * This performs: J_local = J_ambient @ PlusJacobian(x)
+ * Computes \f$J_{\text{local}} = J_{\text{ambient}} \cdot P(x)\f$ where
+ * \f$P(x)\f$ is the Plus Jacobian at pose \f$x\f$.
  *
  * @param J7 7D ambient Jacobian (1x7 row vector)
  * @param x  7D pose [qx, qy, qz, qw, tx, ty, tz]
@@ -179,10 +301,12 @@ inline Eigen::Matrix<double, 1, 6> jacobian7Dto6D(const double* J7, const double
 // -----------------------------
 
 /**
- * Derivatives of rotation matrix R w.r.t. quaternion components.
- * Returns [dR/dx, dR/dy, dR/dz, dR/dw] as an array of four 3x3 matrices.
+ * @brief Derivatives of rotation matrix R w.r.t. quaternion components.
+ *
+ * Computes \f$\frac{\partial R}{\partial q_i}\f$ for each quaternion component.
  *
  * @param q Normalized quaternion (will normalize internally)
+ * @return Array of four 3x3 matrices: [dR/dx, dR/dy, dR/dz, dR/dw]
  */
 inline std::array<Matrix3, 4> dR_dq_mats(const Quaternion& q)
 {
@@ -211,8 +335,13 @@ inline std::array<Matrix3, 4> dR_dq_mats(const Quaternion& q)
 }
 
 /**
- * Derivative of R(q) * v w.r.t. quaternion q.
- * Returns 3x4 matrix: [d(Rv)/dx, d(Rv)/dy, d(Rv)/dz, d(Rv)/dw]
+ * @brief Derivative of R(q) * v w.r.t. quaternion q.
+ *
+ * Computes \f$\frac{\partial (R \mathbf{v})}{\partial \mathbf{q}}\f$.
+ *
+ * @param q Quaternion
+ * @param v 3D vector
+ * @return 3x4 matrix: [d(Rv)/dx, d(Rv)/dy, d(Rv)/dz, d(Rv)/dw]
  */
 inline Matrix3x4 dRv_dq(const Quaternion& q, const Vector3& v)
 {
@@ -226,8 +355,13 @@ inline Matrix3x4 dRv_dq(const Quaternion& q, const Vector3& v)
 }
 
 /**
- * Derivative of R(q).T * v w.r.t. quaternion q.
- * Returns 3x4 matrix.
+ * @brief Derivative of R(q)^T * v w.r.t. quaternion q.
+ *
+ * Computes \f$\frac{\partial (R^\top \mathbf{v})}{\partial \mathbf{q}}\f$.
+ *
+ * @param q Quaternion
+ * @param v 3D vector
+ * @return 3x4 matrix: [d(R^T v)/dx, d(R^T v)/dy, d(R^T v)/dz, d(R^T v)/dw]
  */
 inline Matrix3x4 dRTv_dq(const Quaternion& q, const Vector3& v)
 {

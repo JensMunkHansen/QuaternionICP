@@ -6,7 +6,7 @@
  * - Simple: Binary accept/reject with fixed lambda multipliers
  * - GainRatio: Ceres-style gain ratio with Nielsen radius update
  *
- * @see ICPSimple.h for Gauss-Newton solver and outer loop
+ * @see ICPSolver.h for Gauss-Newton solver and outer loop
  */
 
 // Standard C++ headers

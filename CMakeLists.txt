@@ -20,6 +20,12 @@ option(SPS_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 include(spsCompilerPlatformFlags)
 include(spsEigen)
 
+# Optional TBB support
+option(USE_TBB "Enable TBB for parallel algorithms" ON)
+if(USE_TBB)
+    include(spsTBB)
+endif()
+
 # Enable testing
 option(BUILD_TESTING "Build tests" ON)
 add_subdirectory(ICP)
@@ -39,6 +45,7 @@ if(BUILD_DOCUMENTATION)
         TARGET doc
         INPUT_DIRS
             ${PROJECT_SOURCE_DIR}/README.md
+            ${PROJECT_SOURCE_DIR}/ICP
         OUTPUT_DIR ${PROJECT_BINARY_DIR}/doc
         PROJECT_NAME "QuaternionICP"
         PROJECT_BRIEF "Multi-view point cloud registration using ray-projected ICP"

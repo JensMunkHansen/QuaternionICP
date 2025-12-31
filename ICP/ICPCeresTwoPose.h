@@ -27,7 +27,7 @@
 #include <ICP/Correspondences.h>
 #include <ICP/EigenTypes.h>
 #include <ICP/Grid.h>
-#include <ICP/ICPCeres.h>
+#include <ICP/ICPCeresSolver.h>
 #include <ICP/ICPParams.h>
 #include <ICP/JacobiansAmbientTwoPose.h>
 #include <ICP/SE3.h>

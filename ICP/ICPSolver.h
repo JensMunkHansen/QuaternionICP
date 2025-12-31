@@ -1,12 +1,19 @@
-#pragma once
 /**
- * Simple ICP solver with inner and outer loops.
+ * @file ICPSolver.h
+ * @brief Hand-rolled ICP solver with Gauss-Newton and Levenberg-Marquardt.
  *
- * Inner loop: Build and solve normal equations with fixed correspondences.
- * Outer loop: Recompute correspondences, run inner loop, repeat.
+ * This header provides the native (non-Ceres) ICP implementation with:
+ * - **Inner loop**: Build and solve normal equations with fixed correspondences
+ * - **Outer loop**: Recompute correspondences, run inner loop, repeat
  *
- * Uses ForwardRayCost and ReverseRayCost for bidirectional correspondences.
+ * Supports both Gauss-Newton and Levenberg-Marquardt optimization via
+ * the `SolverType` parameter in `InnerParams`.
+ *
+ * @see ICPCeresSolver.h for Ceres-based solver
+ * @see ICPLM.h for Levenberg-Marquardt implementation details
  */
+
+#pragma once
 
 // Standard C++ headers
 #include <limits>

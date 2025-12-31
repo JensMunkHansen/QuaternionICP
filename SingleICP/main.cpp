@@ -5,9 +5,9 @@
 // Internal headers
 #include <ICP/CommonOptions.h>
 #include <ICP/EigenUtils.h>
-#include <ICP/ICPCeres.h>
+#include <ICP/ICPCeresSolver.h>
 #include <ICP/ICPParams.h>
-#include <ICP/ICPSimple.h>
+#include <ICP/ICPSolver.h>
 #include <ICP/SE3.h>
 #include <ICP/TestGridUtils.h>
 

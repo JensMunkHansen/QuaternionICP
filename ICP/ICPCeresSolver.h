@@ -1,12 +1,30 @@
-#pragma once
 /**
- * Ceres-based ICP solver with inner and outer loops.
+ * @file ICPCeresSolver.h
+ * @brief Ceres-based ICP solver with inner and outer loops.
  *
- * Inner loop: Build Ceres problem with all correspondences, solve.
- * Outer loop: Recompute correspondences, run inner loop, repeat.
+ * This header provides a Ceres Solver-based implementation of the ICP algorithm
+ * using the Sophus SE(3) manifold for proper Lie group optimization.
  *
- * Uses ForwardRayCost and ReverseRayCost as Ceres cost functions.
+ * @section icpceres_architecture Architecture
+ *
+ * - **Inner loop**: Build Ceres problem with fixed correspondences, solve using
+ *   Levenberg-Marquardt or other configured solver.
+ * - **Outer loop**: Recompute bidirectional correspondences at current pose estimate,
+ *   run inner loop, check for convergence.
+ *
+ * @section icpceres_costs Cost Functions
+ *
+ * Uses ray-projection cost functions from JacobiansAmbient.h:
+ * - `ForwardRayCost`: Rays from source points projected onto target surface
+ * - `ReverseRayCost`: Rays from target points projected onto source surface
+ *
+ * @section icpceres_manifold Manifold
+ *
+ * Uses `Sophus::Manifold<Sophus::SE3>` for proper SE(3) optimization,
+ * ensuring poses remain on the manifold during optimization.
  */
+
+#pragma once
 
 // Standard C++ headers
 #include <cmath>
@@ -69,13 +87,14 @@ struct CeresICPResult
  * - Forward: rays from source to target (ForwardRayCost)
  * - Reverse: rays from target to source (ReverseRayCost)
  *
- * @param fwdCorrs   Forward correspondences (source→target rays)
- * @param revCorrs   Reverse correspondences (target→source rays)
- * @param initialPose Initial 7D pose [qx, qy, qz, qw, tx, ty, tz]
- * @param rayDir     Ray direction in local frame (same for both, typically [0,0,-1])
- * @param weighting  Geometry weighting parameters
- * @param params     Inner solver parameters
- * @return           Final pose, RMS, iteration count, convergence status
+ * @param fwdCorrs     Forward correspondences (source→target rays)
+ * @param revCorrs     Reverse correspondences (target→source rays)
+ * @param initialPose  Initial 7D pose [qx, qy, qz, qw, tx, ty, tz]
+ * @param rayDir       Ray direction in local frame (typically [0,0,-1])
+ * @param weighting    Geometry weighting parameters
+ * @param innerParams  Inner solver parameters (iterations, tolerances, etc.)
+ * @tparam JacobianPolicy Jacobian computation policy (default: RayJacobianSimplified)
+ * @return Final pose, RMS, iteration count, convergence status
  */
 template<typename JacobianPolicy = RayJacobianSimplified>
 CeresInnerSolveResult solveInnerCeres(
@@ -181,14 +200,15 @@ CeresInnerSolveResult solveInnerCeres(
 /**
  * Full Ceres ICP solver with outer loop.
  *
- * @param source        Source grid
- * @param target        Target grid
- * @param initialPose   Initial pose estimate
- * @param rayDir        Ray direction in local frame (typically [0,0,-1])
- * @param weighting     Geometry weighting parameters
- * @param innerParams   Inner solver parameters
- * @param outerParams   Outer loop parameters
- * @return              ICP result with final pose and statistics
+ * @param source       Source grid
+ * @param target       Target grid
+ * @param initialPose  Initial pose estimate
+ * @param rayDir       Ray direction in local frame (typically [0,0,-1])
+ * @param weighting    Geometry weighting parameters
+ * @param innerParams  Inner solver parameters
+ * @param outerParams  Outer loop parameters
+ * @tparam JacobianPolicy Jacobian computation policy (default: RayJacobianSimplified)
+ * @return ICP result with final pose and statistics
  */
 template<typename JacobianPolicy = RayJacobianSimplified>
 CeresICPResult solveICPCeres(

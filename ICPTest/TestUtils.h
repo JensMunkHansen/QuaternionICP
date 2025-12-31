@@ -18,8 +18,8 @@
 #include <ICP/Correspondences.h>
 #include <ICP/EigenUtils.h>
 #include <ICP/GridFactory.h>
-#include <ICP/ICPCeres.h>
-#include <ICP/ICPSimple.h>
+#include <ICP/ICPCeresSolver.h>
+#include <ICP/ICPSolver.h>
 
 namespace TestUtils
 {

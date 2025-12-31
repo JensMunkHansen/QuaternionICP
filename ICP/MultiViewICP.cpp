@@ -1,5 +1,5 @@
 #include <ICP/MultiViewICP.h>
-#include <ICP/ICPCeres.h>
+#include <ICP/ICPCeresSolver.h>
 #include <ICP/JacobiansAmbientTwoPose.h>
 
 #include <ceres/ceres.h>

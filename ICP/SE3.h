@@ -8,7 +8,9 @@
  *
  * @section se3_conventions Conventions
  *
- * - Quaternion storage: Eigen internal order `[x, y, z, w]` via `coeffs()`
+ * - Eigen::Quaterniond::coeffs() returns [x,y,z,w]
+ * - We store poses as [qx, qy, qz, qw]
+ * - We construct quaternions as Quaternion(w, x, y, z) (scalar-first)
  * - SE(3) pose: 7D vector `[qx, qy, qz, qw, tx, ty, tz]`
  * - Tangent space: 6D vector `[v_x, v_y, v_z, w_x, w_y, w_z]` (translation, rotation)
  *
@@ -25,8 +27,8 @@
  *
  * SE(3) is the group of rigid body transformations:
  * \f[
- *   \mathrm{SE}(3) = \left\{ T = \begin{bmatrix} R & \mathbf{t} \\ \mathbf{0}^\top & 1 \end{bmatrix}
- *   : R \in \mathrm{SO}(3), \mathbf{t} \in \mathbb{R}^3 \right\}
+ *   \mathrm{SE}(3) = \left\{ T = \begin{bmatrix} R & \mathbf{t} \\ \mathbf{0}^\top & 1
+ *   \end{bmatrix} : R \in \mathrm{SO}(3), \mathbf{t} \in \mathbb{R}^3 \right\}
  * \f]
  *
  * @section se3_skew Skew-Symmetric Matrix (Hat Operator)
@@ -71,8 +73,71 @@
  *   \mathbf{t} \leftarrow \mathbf{t} + R \cdot V \cdot \mathbf{v}
  * \f]
  *
- * This corresponds to perturbations in the **body/moving frame**, where increments
- * are expressed relative to the current pose rather than the world frame.
+ * @section se3_manifold Ambient 7D Storage vs. 6D Manifold Update
+ *
+ * The pose is stored in a 7D **ambient** parameter vector:
+ * \f[
+ *   \mathbf{p} = [q_x, q_y, q_z, q_w, t_x, t_y, t_z] \in \mathbb{R}^7,
+ * \f]
+ * where \f$\mathbf{q}\f$ is a **unit** quaternion and \f$\mathbf{t}\f$ is translation.
+ *
+ * Optimization, however, is performed on the SE(3) manifold using a 6D tangent
+ * increment (twist) in the Lie algebra \f$\mathfrak{se}(3)\f$:
+ * \f[
+ *   \delta\boldsymbol{\xi} = (\mathbf{v}, \boldsymbol{\omega})
+ *   = [v_x, v_y, v_z, \omega_x, \omega_y, \omega_z] \in \mathbb{R}^6.
+ * \f]
+ *
+ * The mapping from a tangent increment to an SE(3) perturbation uses the
+ * exponential map:
+ * \f[
+ *   \Delta T = \exp(\widehat{\delta\boldsymbol{\xi}})
+ *   = \begin{bmatrix} \Delta R & \Delta\mathbf{t} \\ \mathbf{0}^\top & 1 \end{bmatrix}.
+ * \f]
+ *
+ * With the **right-multiplicative (body-frame)** convention, the state update is:
+ * \f[
+ *   T \leftarrow T \cdot \Delta T.
+ * \f]
+ *
+ * Writing \f$T = (R,\mathbf{t})\f$ and \f$\Delta T = (\Delta R, V\,\mathbf{v})\f$,
+ * the update becomes:
+ * \f[
+ *   R \leftarrow R\,\Delta R, \qquad
+ *   \mathbf{t} \leftarrow \mathbf{t} + R\,V\,\mathbf{v}.
+ * \f]
+ *
+ * In quaternion form this is:
+ * \f[
+ *   \mathbf{q} \leftarrow \mathbf{q} \otimes \delta\mathbf{q}, \qquad
+ *   \mathbf{t} \leftarrow \mathbf{t} + R(\mathbf{q})\,V\,\mathbf{v},
+ * \f]
+ * where \f$\delta\mathbf{q} = \exp(\boldsymbol{\omega})\f$ is the unit quaternion
+ * corresponding to \f$\Delta R = \exp([\boldsymbol{\omega}]_\times)\f$.
+ *
+ * @subsection se3_manifold_notes Practical notes
+ * - The quaternion must remain unit-length; implementations typically renormalize
+ *   \f$\mathbf{q}\f$ after applying \f$\delta\mathbf{q}\f$.
+ * - For small \f$\|\boldsymbol{\omega}\|\f$, use series expansions for
+ *   \f$\sin(\theta)/\theta\f$, \f$(1-\cos\theta)/\theta^2\f$, etc., to avoid
+ *   numerical issues, and to ensure \f$V \approx I\f$ as \f$\theta \to 0\f$.
+ * - Because this is a **body-frame** increment, \f$\delta\boldsymbol{\xi}\f$
+ *   is interpreted in the moving frame attached to the current pose.
+ *
+ * @section se3_chart_jac Chart Jacobian for Pulling Back Ambient Jacobians
+ *
+ * Many residual/Jacobian implementations compute derivatives w.r.t. the 7D ambient
+ * parameters (q,t). Gauss-Newton, however, solves in the 6D tangent space.
+ *
+ * Define the Plus chart:  x_plus(delta) = Plus(x, delta).
+ * The chart Jacobian at the expansion point is:
+ *   P(x) = ∂ Plus(x,delta) / ∂ delta |_{delta=0}   (size 7×6).
+ *
+ * Given an ambient Jacobian J7 = ∂r/∂x (size 1×7), the corresponding local Jacobian is:
+ *   J6 = ∂r/∂delta = J7 * P(x)    (size 1×6).
+ *
+ * Note: P(x) here is evaluated at delta=0, so terms like ∂t/∂w vanish at the expansion
+ * point (they are proportional to v, and v=0 at delta=0).
  */
 
 #pragma once
@@ -118,9 +183,7 @@ constexpr double kSmallAngleThreshold = 1e-12;
 inline Matrix3 skew(const Vector3& w)
 {
     Matrix3 S;
-    S << 0, -w.z(), w.y(),
-         w.z(), 0, -w.x(),
-        -w.y(), w.x(), 0;
+    S << 0, -w.z(), w.y(), w.z(), 0, -w.x(), -w.y(), w.x(), 0;
     return S;
 }
 
@@ -173,7 +236,8 @@ inline Quaternion quatExpSO3(const Vector3& w)
  * - \f$B = (1 - \cos\theta) / \theta^2\f$
  * - \f$C = (1 - \sin\theta / \theta) / \theta^2\f$
  *
- * For small angles (\f$\theta < 10^{-12}\f$), uses \f$V \approx I + \frac{1}{2}[\boldsymbol{\omega}]_\times\f$.
+ * For small angles (\f$\theta < 10^{-12}\f$), uses \f$V \approx I +
+ * \frac{1}{2}[\boldsymbol{\omega}]_\times\f$.
  *
  * @param w Rotation vector
  * @return 3x3 left Jacobian matrix
@@ -200,14 +264,30 @@ inline Matrix3 Vso3(const Vector3& w)
 using Tangent6 = Vector6;
 
 /**
- * @brief SE(3) Plus operation using right-multiplication.
+ * @brief SE(3) Plus operation using right-multiplication (body-frame perturbation).
  *
- * Computes \f$T_{\text{new}} = T \cdot \exp(\widehat{\boldsymbol{\xi}})\f$ where
- * \f$\boldsymbol{\xi} = (\mathbf{v}, \boldsymbol{\omega}) \in \mathbb{R}^6\f$:
+ * Applies a tangent-space increment via the SE(3) exponential map:
  * \f[
- *   R \leftarrow R \cdot \Delta R, \quad
- *   \mathbf{t} \leftarrow \mathbf{t} + R \cdot V \cdot \mathbf{v}
+ *   T_{\text{new}} = T \cdot \exp(\widehat{\delta\boldsymbol{\xi}}), \quad
+ *   \delta\boldsymbol{\xi} = (\mathbf{v}, \boldsymbol{\omega}) \in \mathbb{R}^6
  * \f]
+ *
+ * With \f$\Delta R = \exp([\boldsymbol{\omega}]_\times)\f$ and the SE(3) coupling
+ * matrix \f$V(\boldsymbol{\omega})\f$ (SO(3) left Jacobian), the component update is:
+ * \f[
+ *   R_{\text{new}} = R \cdot \Delta R, \qquad
+ *   \mathbf{t}_{\text{new}} = \mathbf{t} + R \cdot V(\boldsymbol{\omega}) \cdot \mathbf{v}.
+ * \f]
+ *
+ * Gotchas / conventions:
+ * - **Right (body-frame) perturbation:** the quaternion update is
+ *   \f$\mathbf{q}_{\text{new}} = \mathbf{q} \otimes \delta\mathbf{q}\f$
+ *   (not \f$\delta\mathbf{q} \otimes \mathbf{q}\f$).
+ * - **Translation uses the current rotation:** the translational increment is rotated by
+ *   the *current* \f$R(\mathbf{q})\f$ (not \f$R(\mathbf{q}_{\text{new}})\f$).
+ * - **Quaternion sign ambiguity:** \f$\mathbf{q}\f$ and \f$-\mathbf{q}\f$ represent the
+ *   same rotation. The update may flip the quaternion sign without affecting
+ *   \f$R(\mathbf{q})\f$ or any geometric quantity.
  *
  * @param x     Current pose [qx, qy, qz, qw, tx, ty, tz]
  * @param delta Tangent increment [v_x, v_y, v_z, w_x, w_y, w_z]
@@ -216,13 +296,20 @@ using Tangent6 = Vector6;
 inline Pose7 se3Plus(const Pose7& x, const Tangent6& delta)
 {
     // Extract quaternion and translation
-    Quaternion q(x[3], x[0], x[1], x[2]);  // w, x, y, z
+    Quaternion q(x[3], x[0], x[1], x[2]); // w, x, y, z
     q.normalize();
     Vector3 t = x.tail<3>();
 
     // Extract tangent components
-    Vector3 v = delta.head<3>();  // translation part
-    Vector3 w = delta.tail<3>();  // rotation part
+    // w is axis-angle in radians; v is translation in the tangent space (same length units as t).
+    Vector3 v = delta.head<3>(); // translation part
+    Vector3 w = delta.tail<3>(); // rotation part
+
+    // Right-multiplicative (body-frame) update:
+    //   q_new = q ⊗ Exp(w)
+    //   t_new = t + R(q) * V(w) * v
+    // Note: R(q) is the rotation of the *current* pose (not q_new).
+    // For small ||w||, V(w) ≈ I and the update reduces to t_new ≈ t + R(q)*v.
 
     // Rotation update: q_new = q * exp(w)
     Quaternion dq = quatExpSO3(w);
@@ -240,15 +327,42 @@ inline Pose7 se3Plus(const Pose7& x, const Tangent6& delta)
 }
 
 /**
- * @brief Jacobian of the Plus operation w.r.t. the tangent increment.
+ * @brief SE(3) chart Jacobian P(x) for the right-multiplicative Plus operation.
  *
- * Computes \f$\frac{\partial \text{Plus}(x, \delta)}{\partial \delta}\big|_{\delta=0}\f$.
+ * Let Plus(x, delta) apply a body-frame (right) perturbation:
+ *   T_new = T(x) * Exp(delta^),  with delta = (v, w) ∈ R^6.
  *
- * Returns a 7x6 matrix mapping tangent increments to ambient (7D) changes.
- * Used for chain rule: \f$J_{\text{local}} = J_{\text{ambient}} \cdot P\f$
+ * This function returns the chart Jacobian evaluated at the linearization point:
+ *   P(x) = ∂ Plus(x, delta) / ∂ delta |_{delta = 0}    (size 7×6),
+ * mapping a small tangent increment δξ ∈ R^6 to a first-order change in the
+ * 7D ambient parameterization (quaternion + translation).
  *
- * @param x Current pose [qx, qy, qz, qw, tx, ty, tz]
- * @return 7x6 Jacobian matrix
+ * Block structure at delta = 0:
+ * - Translation part:
+ *     ∂t/∂v = R(q)        because V(0) = I  and  t_new = t + R * V(w) * v.
+ *     ∂t/∂w = 0           at the expansion point, since this term is proportional
+ *                         to v (and v = 0 at delta = 0 in the partial derivative).
+ *
+ * - Quaternion part (right perturbation):
+ *     q_new = q ⊗ Exp(w).
+ *   Using the small-angle approximation Exp(w) ≈ [1, 0.5 w] in quaternion form,
+ *   we obtain (with q = [v_q, s]):
+ *     ∂v_q/∂w = 0.5 ( s I + [v_q]_× ),
+ *     ∂s  /∂w = -0.5 v_q^T.
+ *
+ * Sign convention note:
+ * - The above expressions are for **right-multiplication** (q_new = q ⊗ δq).
+ * - If using **left-multiplication** (q_new = δq ⊗ q), the cross-term changes sign
+ *   (the skew term appears with the opposite sign).
+ *
+ * Quaternion renormalization is treated as a no-op at first order.
+ *
+ * @note
+ * For the full 7x6 SE(3) chart Jacobian away from the linearization point,
+ * see @ref se3_full_chart_jacobian.
+ *
+ * @param x Current pose [qx, qy, qz, qw, tx, ty, tz] (quaternion stored as x,y,z,w)
+ * @return  7×6 chart Jacobian P(x) evaluated at delta = 0
  */
 inline Matrix7x6 plusJacobian7x6(const Pose7& x)
 {
@@ -262,17 +376,19 @@ inline Matrix7x6 plusJacobian7x6(const Pose7& x)
 
     Matrix7x6 J = Matrix7x6::Zero();
 
-    // dq/dw (at delta=0): 4x3 block
-    // dq = 0.5 * q * [0, w]  for small w
-    // => d(vq)/dw = 0.5 * (s*I + [vq]_x)
-    // => d(s)/dw  = -0.5 * vq
+    // Quaternion block: ∂q_new/∂w at delta=0 for right perturbation q_new = q ⊗ Exp(w).
+    // Using Exp(w) ≈ [1, 0.5 w] (unit quaternion), we have:
+    //   q ⊗ [1, 0.5 w]  =>  d(v_q)/dw = 0.5 * (s I + [v_q]_x),
+    //                      d(s)/dw    = -0.5 * v_q^T,
+    // where q = [v_q, s] (vector part v_q = [x,y,z], scalar part s = q_w).
+    // Note: for left perturbation q_new = Exp(w) ⊗ q, the skew/cross term changes sign.
     Matrix4x3 dq_dw;
     dq_dw.topRows<3>() = 0.5 * (s * Matrix3::Identity() + skew(vq));
     dq_dw.row(3) = -0.5 * vq.transpose();
 
     // dt/dv (at delta=0, V=I): R
-    J.block<4, 3>(0, 3) = dq_dw;   // quaternion rows, rotation columns
-    J.block<3, 3>(4, 0) = R;       // translation rows, translation columns
+    J.block<4, 3>(0, 3) = dq_dw; // quaternion rows, rotation columns
+    J.block<3, 3>(4, 0) = R;     // translation rows, translation columns
 
     return J;
 }
@@ -282,6 +398,8 @@ inline Matrix7x6 plusJacobian7x6(const Pose7& x)
  *
  * Computes \f$J_{\text{local}} = J_{\text{ambient}} \cdot P(x)\f$ where
  * \f$P(x)\f$ is the Plus Jacobian at pose \f$x\f$.
+ *
+ * @note This is a pullback through the Plus chart, not a Euclidean projection
  *
  * @param J7 7D ambient Jacobian (1x7 row vector)
  * @param x  7D pose [qx, qy, qz, qw, tx, ty, tz]
@@ -315,23 +433,15 @@ inline std::array<Matrix3, 4> dR_dq_mats(const Quaternion& q)
 
     Matrix3 dRdx, dRdy, dRdz, dRdw;
 
-    dRdx << 0.0,   2*y,   2*z,
-            2*y,  -4*x,  -2*w,
-            2*z,   2*w,  -4*x;
+    dRdx << 0.0, 2 * y, 2 * z, 2 * y, -4 * x, -2 * w, 2 * z, 2 * w, -4 * x;
 
-    dRdy << -4*y,  2*x,   2*w,
-             2*x,  0.0,   2*z,
-            -2*w,  2*z,  -4*y;
+    dRdy << -4 * y, 2 * x, 2 * w, 2 * x, 0.0, 2 * z, -2 * w, 2 * z, -4 * y;
 
-    dRdz << -4*z, -2*w,  2*x,
-             2*w, -4*z,  2*y,
-             2*x,  2*y,  0.0;
+    dRdz << -4 * z, -2 * w, 2 * x, 2 * w, -4 * z, 2 * y, 2 * x, 2 * y, 0.0;
 
-    dRdw << 0.0, -2*z,  2*y,
-            2*z,  0.0, -2*x,
-           -2*y,  2*x,  0.0;
+    dRdw << 0.0, -2 * z, 2 * y, 2 * z, 0.0, -2 * x, -2 * y, 2 * x, 0.0;
 
-    return {dRdx, dRdy, dRdz, dRdw};
+    return { dRdx, dRdy, dRdz, dRdw };
 }
 
 /**

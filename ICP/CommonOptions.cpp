@@ -175,6 +175,11 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     {
         parser.ParseCLI(argc, argv);
     }
+    catch (const args::Completion& e)
+    {
+        std::cout << e.what();
+        return false;
+    }
     catch (const args::Help&)
     {
         std::cout << parser;

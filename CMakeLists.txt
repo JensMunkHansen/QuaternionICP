@@ -45,6 +45,7 @@ if(BUILD_DOCUMENTATION)
         TARGET doc
         INPUT_DIRS
             ${PROJECT_SOURCE_DIR}/README.md
+            ${PROJECT_SOURCE_DIR}/Doc/AmbientVersusTangent.md
             ${PROJECT_SOURCE_DIR}/Doc/SE3_FullChartJacobian.md
             ${PROJECT_SOURCE_DIR}/ICP
         OUTPUT_DIR ${PROJECT_BINARY_DIR}/doc

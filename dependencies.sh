@@ -9,10 +9,68 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPILER_CHOICE="gcc"
 KEEP_BUILD=false
 
+# Help function
+show_help() {
+    cat << 'EOF'
+QuaternionICP Dependencies Builder
+
+Usage: ./dependencies.sh [OPTIONS] [CMAKE_ARGS...]
+
+Options:
+  --help, -h            Show this help message
+  --compiler=<gcc|clang> Select compiler (default: gcc)
+  --keep-build          Keep build directory after install
+
+Optional CMake flags (pass directly):
+  -DUSE_MKL=ON          Enable Intel MKL for LAPACK/BLAS
+                        Requires: source /opt/intel/oneapi/setvars.sh
+
+  -DUSE_TBB=ON          Enable Intel TBB for parallel algorithms
+                        Requires: source /opt/intel/oneapi/setvars.sh
+
+  -DUSE_CUDA=ON         Enable CUDA support for GPU acceleration
+                        Requires: CUDA toolkit installed
+
+  -DUSE_SUITESPARSE=ON  Enable SuiteSparse for sparse Cholesky
+                        Required for: SPARSE_NORMAL_CHOLESKY, CudaSparseCholesky
+                        Combine with -DUSE_CUDA=ON for GPU-accelerated sparse
+
+  -DDEPS_VERBOSE=ON     Show detailed build output
+
+Examples:
+  ./dependencies.sh
+      Build with GCC, default options
+
+  ./dependencies.sh --compiler=clang
+      Build with Clang
+
+  ./dependencies.sh -DUSE_MKL=ON -DUSE_TBB=ON
+      Build with Intel MKL and TBB (run setvars.sh first)
+
+  ./dependencies.sh -DUSE_CUDA=ON -DUSE_SUITESPARSE=ON
+      Build with CUDA and SuiteSparse for GPU sparse solvers
+
+Feature Matrix:
+  Linear Solver              Requires
+  ─────────────────────────  ────────────────────────
+  DenseQR                    (always available)
+  DenseSchur                 (always available)
+  SparseSchur                USE_SUITESPARSE=ON
+  SparseNormalCholesky       USE_SUITESPARSE=ON
+  CudaDenseCholesky          USE_CUDA=ON
+  CudaSparseCholesky         USE_CUDA=ON + USE_SUITESPARSE=ON
+
+EOF
+    exit 0
+}
+
 # Parse arguments
 CMAKE_ARGS=()
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --help|-h)
+            show_help
+            ;;
         --compiler)
             COMPILER_CHOICE="$2"
             shift 2

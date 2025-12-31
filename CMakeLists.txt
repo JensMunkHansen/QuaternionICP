@@ -26,6 +26,13 @@ if(USE_TBB)
     include(spsTBB)
 endif()
 
+# Optional MKL support
+option(USE_MKL "Enable Intel MKL for LAPACK/BLAS" OFF)
+if(USE_MKL)
+    include(spsMKL)
+    sps_find_mkl()
+endif()
+
 # Enable testing
 option(BUILD_TESTING "Build tests" ON)
 add_subdirectory(ICP)
@@ -45,8 +52,15 @@ if(BUILD_DOCUMENTATION)
         TARGET doc
         INPUT_DIRS
             ${PROJECT_SOURCE_DIR}/README.md
-            ${PROJECT_SOURCE_DIR}/Doc/AmbientVersusTangent.md
+            ${PROJECT_SOURCE_DIR}/Doc/RayProjectionOverview.md
+            ${PROJECT_SOURCE_DIR}/Doc/SO3LeftJacobian.md
             ${PROJECT_SOURCE_DIR}/Doc/SE3_FullChartJacobian.md
+            ${PROJECT_SOURCE_DIR}/Doc/RayProjectionJacobian.md
+            ${PROJECT_SOURCE_DIR}/Doc/EpsilonSweepGuide.md
+            ${PROJECT_SOURCE_DIR}/Doc/JacobianValidation.md
+            ${PROJECT_SOURCE_DIR}/Doc/SimplifiedJacobianAnalysis.md
+            ${PROJECT_SOURCE_DIR}/Doc/AmbientVersusTangent.md
+            ${PROJECT_SOURCE_DIR}/Doc/JacobianPedantic.md
             ${PROJECT_SOURCE_DIR}/ICP
         OUTPUT_DIR ${PROJECT_BINARY_DIR}/doc
         PROJECT_NAME "QuaternionICP"

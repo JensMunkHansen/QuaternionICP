@@ -39,7 +39,7 @@ Component form:
   \mathbf{t}_{\text{new}} = \mathbf{t} + R(\mathbf{q}) \, V(\boldsymbol{\omega}) \, \mathbf{v}
 \f]
 
-where \f$V(\boldsymbol{\omega})\f$ is the SO(3) left Jacobian.
+where \f$V(\boldsymbol{\omega})\f$ is the SO(3) left Jacobian (see @ref so3_left_jacobian).
 
 @section se3_full_definition Definition of the Chart Jacobian
 
@@ -175,3 +175,8 @@ At the Gauss-Newton expansion point \f$\delta=0\f$:
   \end{bmatrix}
 \f]
 This is the standard SE(3) chart Jacobian used in ICP and Gauss-Newton solvers.
+
+@section se3_full_related Related Documents
+
+- @ref so3_left_jacobian — Derivation and closed-form expression for \f$V(\boldsymbol{\omega})\f$
+- `ICP/SE3.h` — Implementation of `se3Plus()` and `plusJacobian7x6()`

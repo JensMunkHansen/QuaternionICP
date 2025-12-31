@@ -242,6 +242,7 @@ inline Quaternion quatExpSO3(const Vector3& w)
  * @param w Rotation vector
  * @return 3x3 left Jacobian matrix
  */
+//! [Vso3]
 inline Matrix3 Vso3(const Vector3& w)
 {
     Matrix3 W = skew(w);
@@ -255,6 +256,7 @@ inline Matrix3 Vso3(const Vector3& w)
     double C = (1.0 - A) / (th * th);
     return Matrix3::Identity() + B * W + C * (W * W);
 }
+//! [Vso3]
 
 // -----------------------------
 // SE(3) manifold operations (right-multiplication)

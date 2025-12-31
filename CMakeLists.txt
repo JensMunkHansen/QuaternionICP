@@ -62,6 +62,7 @@ if(BUILD_DOCUMENTATION)
             ${PROJECT_SOURCE_DIR}/Doc/AmbientVersusTangent.md
             ${PROJECT_SOURCE_DIR}/Doc/JacobianPedantic.md
             ${PROJECT_SOURCE_DIR}/ICP
+        EXAMPLE_PATH ${PROJECT_SOURCE_DIR}/ICP
         OUTPUT_DIR ${PROJECT_BINARY_DIR}/doc
         PROJECT_NAME "QuaternionICP"
         PROJECT_BRIEF "Multi-view point cloud registration using ray-projected ICP"

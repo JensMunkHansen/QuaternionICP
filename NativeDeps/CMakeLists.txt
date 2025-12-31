@@ -95,11 +95,15 @@ if(USE_MKL)
     message(FATAL_ERROR "USE_MKL=ON but MKL not found. Set MKLROOT in .bashrc")
   endif()
 
-  # Determine BLA_VENDOR based on whether iomp5 was found
-  if(TARGET MKL::iomp5)
+  # Determine BLA_VENDOR based on whether threaded MKL is available
+  # SPS_MKL_THREADED and IOMP5_LIB_DIR are set by spsMKL.cmake
+  if(SPS_MKL_THREADED)
     set(MKL_BLA_VENDOR "Intel10_64lp")  # Threaded
+    message(STATUS "  BLA_VENDOR: ${MKL_BLA_VENDOR} (threaded)")
   else()
     set(MKL_BLA_VENDOR "Intel10_64lp_seq")  # Sequential
+    set(IOMP5_LIB_DIR "")
+    message(STATUS "  BLA_VENDOR: ${MKL_BLA_VENDOR} (sequential)")
   endif()
 
   set(MKLROOT "$ENV{MKLROOT}")
@@ -211,6 +215,9 @@ if(USE_SUITESPARSE)
     -DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config$<SEMICOLON>amd$<SEMICOLON>colamd$<SEMICOLON>camd$<SEMICOLON>ccolamd$<SEMICOLON>cholmod$<SEMICOLON>spqr
     -DSUITESPARSE_USE_FORTRAN=OFF
     -DBUILD_TESTING=OFF
+    # TODO: To enable MKL for SuiteSparse (CHOLMOD/SPQR), replace Generic with:
+    #   -DBLA_VENDOR=${MKL_BLA_VENDOR}
+    #   "-DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX};${MKLROOT}/lib/cmake"
     -DBLA_VENDOR=Generic
   )
 
@@ -280,6 +287,7 @@ if(BUILD_CERES)
     -DEIGENSPARSE=ON
     -DUSE_CUDA=OFF
   )
+  set(CERES_CMAKE_CACHE_ARGS "")
 
   # CUDA support
   if(USE_CUDA)
@@ -295,12 +303,15 @@ if(BUILD_CERES)
   # MKL/LAPACK support
   if(USE_MKL)
     message(STATUS "  Ceres: MKL/LAPACK enabled (${MKL_BLA_VENDOR})")
-    # Pass MKL location so FindBLAS can find it without setvars.sh
     list(APPEND CERES_CMAKE_ARGS
       -DLAPACK=ON
       -DBLA_VENDOR=${MKL_BLA_VENDOR}
       -DMKLROOT=${MKLROOT}
-      "-DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX};${MKLROOT}/lib/cmake"
+    )
+    # Use CMAKE_CACHE_ARGS for paths with semicolons (list values)
+    list(APPEND CERES_CMAKE_CACHE_ARGS
+      "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX};${MKLROOT}/lib/cmake"
+      "-DCMAKE_LIBRARY_PATH:STRING=${MKLROOT}/lib;${IOMP5_LIB_DIR}"
     )
   else()
     list(APPEND CERES_CMAKE_ARGS -DLAPACK=OFF)
@@ -335,6 +346,7 @@ if(BUILD_CERES)
     UPDATE_COMMAND ""
     DEPENDS        ${CERES_DEPENDS}
     CMAKE_ARGS     ${CERES_CMAKE_ARGS}
+    CMAKE_CACHE_ARGS ${CERES_CMAKE_CACHE_ARGS}
     LOG_BUILD ${EP_LOG_LEVEL}
     LOG_CONFIGURE ${EP_LOG_LEVEL}
     LOG_INSTALL ${EP_LOG_LEVEL}

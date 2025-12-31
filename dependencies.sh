@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default compiler
 COMPILER_CHOICE="gcc"
-KEEP_BUILD=false
+KEEP_BUILD=true
 
 # Help function
 show_help() {
@@ -19,7 +19,7 @@ Usage: ./dependencies.sh [OPTIONS] [CMAKE_ARGS...]
 Options:
   --help, -h            Show this help message
   --compiler=<gcc|clang> Select compiler (default: gcc)
-  --keep-build          Keep build directory after install
+  --delete-build        Delete build directory after install (default: keep)
 
 Optional CMake flags (pass directly):
   -DUSE_MKL=ON          Enable Intel MKL for LAPACK/BLAS
@@ -80,6 +80,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --keep-build)
             KEEP_BUILD=true
+            shift
+            ;;
+        --delete-build)
+            KEEP_BUILD=false
             shift
             ;;
         *)

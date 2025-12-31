@@ -24,7 +24,15 @@
                 "CMAKE_C_COMPILER": "gcc",
                 "CMAKE_CXX_COMPILER": "g++",
                 "BUILD_TESTING": "ON",
+                "USE_MKL": "ON",
                 "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/gcc/install"
+            }
+        },
+        {
+            "name": "linux-gcc-nomkl",
+            "inherits": "linux-gcc",
+            "cacheVariables": {
+                "USE_MKL": "OFF"
             }
         },
         {

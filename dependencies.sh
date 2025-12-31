@@ -36,6 +36,9 @@ Optional CMake flags (pass directly):
 
   -DDEPS_VERBOSE=ON     Show detailed build output
 
+  -DBUILD_SHARED_LIBS=ON  Build shared libraries (.so) instead of static (.a)
+                        Reduces binary size but requires .so files at runtime
+
 Examples:
   ./dependencies.sh
       Build with GCC, default options
@@ -50,14 +53,16 @@ Examples:
       Build with CUDA and SuiteSparse for GPU sparse solvers
 
 Feature Matrix:
-  Linear Solver              Requires
-  ─────────────────────────  ────────────────────────
-  DenseQR                    (always available)
-  DenseSchur                 (always available)
-  SparseSchur                USE_SUITESPARSE=ON
-  SparseNormalCholesky       USE_SUITESPARSE=ON
-  CudaDenseCholesky          USE_CUDA=ON
-  CudaSparseCholesky         USE_CUDA=ON + USE_SUITESPARSE=ON
+  Linear Solver              Flags                     Backend
+  ─────────────────────────  ────────────────────────  ─────────────────
+  DenseQR                    (none)                    Eigen
+  DenseSchur                 (none)                    Eigen
+  SparseSchur                (none)                    Eigen sparse
+  SparseSchur                USE_SUITESPARSE=ON        CHOLMOD (faster)
+  SparseNormalCholesky       (none)                    Eigen sparse
+  SparseNormalCholesky       USE_SUITESPARSE=ON        CHOLMOD (faster)
+  CudaDenseCholesky          USE_CUDA=ON               cuSOLVER
+  CudaSparseCholesky         USE_CUDA=ON + SUITESPARSE cuSPARSE + CHOLMOD
 
 EOF
     exit 0

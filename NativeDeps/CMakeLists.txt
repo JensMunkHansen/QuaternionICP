@@ -72,6 +72,9 @@ option(USE_MKL "Enable Intel MKL (LAPACK) in Ceres" OFF)
 option(USE_TBB "Enable TBB threading in Ceres" OFF)
 option(USE_SUITESPARSE "Enable SuiteSparse in Ceres" OFF)
 
+# Build shared libraries (reduces binary size but requires .so at runtime)
+option(BUILD_SHARED_LIBS "Build shared libraries instead of static" OFF)
+
 # CUDA configuration
 # Auto-detect CUDA toolkit root from nvcc location, fallback to /usr/local/cuda
 find_program(NVCC_EXECUTABLE nvcc)
@@ -82,7 +85,7 @@ if(NVCC_EXECUTABLE)
 else()
   set(CUDA_TOOLKIT_ROOT "/usr/local/cuda" CACHE PATH "CUDA toolkit root")
 endif()
-set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures")
+set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures" FORCE)
 
 #------------------------------------------------------------------------------
 # MKL detection (for Ceres LAPACK) - uses spsMKL for detection
@@ -126,6 +129,7 @@ set(COMMON_CMAKE_ARGS
   -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   -DCMAKE_CXX_STANDARD=17
+  -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
 )
 
 #------------------------------------------------------------------------------
@@ -291,12 +295,15 @@ if(BUILD_CERES)
 
   # CUDA support
   if(USE_CUDA)
-    message(STATUS "  Ceres: CUDA enabled")
+    message(STATUS "  Ceres: CUDA enabled (arch=${CMAKE_CUDA_ARCHITECTURES})")
     list(APPEND CERES_CMAKE_ARGS
       -DUSE_CUDA=ON
-      -DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}
       -DCMAKE_CUDA_COMPILER=${CUDA_TOOLKIT_ROOT}/bin/nvcc
       -DCUDA_TOOLKIT_ROOT_DIR=${CUDA_TOOLKIT_ROOT}
+    )
+    # Use CMAKE_CACHE_ARGS to ensure architecture is set correctly
+    list(APPEND CERES_CMAKE_CACHE_ARGS
+      "-DCMAKE_CUDA_ARCHITECTURES:STRING=${CMAKE_CUDA_ARCHITECTURES}"
     )
   endif()
 
@@ -339,11 +346,21 @@ if(BUILD_CERES)
     )
   endif()
 
+  # Patch Ceres to respect CMAKE_CUDA_ARCHITECTURES if already set
+  # Ceres unconditionally overwrites it, which breaks custom arch settings
+  set(CERES_PATCH_CMD "")
+  if(USE_CUDA)
+    set(CERES_PATCH_CMD
+      git apply ${CMAKE_CURRENT_SOURCE_DIR}/patches/ceres-cuda-arch.patch
+    )
+  endif()
+
   ExternalProject_Add(Ceres
     GIT_REPOSITORY https://github.com/ceres-solver/ceres-solver.git
     GIT_TAG        ${CERES_VERSION}
     GIT_SHALLOW    TRUE
     UPDATE_COMMAND ""
+    PATCH_COMMAND  ${CERES_PATCH_CMD}
     DEPENDS        ${CERES_DEPENDS}
     CMAKE_ARGS     ${CERES_CMAKE_ARGS}
     CMAKE_CACHE_ARGS ${CERES_CMAKE_CACHE_ARGS}

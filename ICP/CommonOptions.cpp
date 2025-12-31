@@ -124,7 +124,9 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
         {{"dense-qr", CommonOptions::LinearSolver::DenseQR},
          {"dense-schur", CommonOptions::LinearSolver::DenseSchur},
          {"sparse-schur", CommonOptions::LinearSolver::SparseSchur},
-         {"iterative-schur", CommonOptions::LinearSolver::IterativeSchur}},
+         {"iterative-schur", CommonOptions::LinearSolver::IterativeSchur},
+         {"cuda-dense", CommonOptions::LinearSolver::CudaDenseCholesky},
+         {"cuda-sparse", CommonOptions::LinearSolver::CudaSparseCholesky}},
         CommonOptions::LinearSolver::DenseQR);
 
     // Jacobian policy
@@ -331,6 +333,29 @@ InnerParams commonOptionsToInnerParams(const CommonOptions& opts)
     params.lm.lambdaMin = opts.lm.lambdaMin;
     params.lm.lambdaMax = opts.lm.lambdaMax;
 
+    // Linear solver type
+    switch (opts.linearSolver)
+    {
+        case CommonOptions::LinearSolver::DenseQR:
+            params.linearSolverType = LinearSolverType::DenseQR;
+            break;
+        case CommonOptions::LinearSolver::DenseSchur:
+            params.linearSolverType = LinearSolverType::DenseSchur;
+            break;
+        case CommonOptions::LinearSolver::SparseSchur:
+            params.linearSolverType = LinearSolverType::SparseSchur;
+            break;
+        case CommonOptions::LinearSolver::IterativeSchur:
+            params.linearSolverType = LinearSolverType::IterativeSchur;
+            break;
+        case CommonOptions::LinearSolver::CudaDenseCholesky:
+            params.linearSolverType = LinearSolverType::CudaDenseCholesky;
+            break;
+        case CommonOptions::LinearSolver::CudaSparseCholesky:
+            params.linearSolverType = LinearSolverType::CudaSparseCholesky;
+            break;
+    }
+
     params.verbose = opts.verbose;
 
     return params;
@@ -387,6 +412,8 @@ void printCommonConfig(const CommonOptions& opts)
             case CommonOptions::LinearSolver::DenseSchur: std::cout << "DENSE_SCHUR"; break;
             case CommonOptions::LinearSolver::SparseSchur: std::cout << "SPARSE_SCHUR"; break;
             case CommonOptions::LinearSolver::IterativeSchur: std::cout << "ITERATIVE_SCHUR"; break;
+            case CommonOptions::LinearSolver::CudaDenseCholesky: std::cout << "CUDA_DENSE_CHOLESKY"; break;
+            case CommonOptions::LinearSolver::CudaSparseCholesky: std::cout << "CUDA_SPARSE_CHOLESKY"; break;
         }
         std::cout << "\n";
     }

@@ -65,10 +65,12 @@ enum class LMStrategy
  */
 enum class LinearSolverType
 {
-    DenseQR,         // Default, good for small problems
-    DenseSchur,      // For bundle adjustment style problems
-    SparseSchur,     // Sparse version of Schur
-    IterativeSchur   // Iterative, good for large multi-view problems
+    DenseQR,              // Default, good for small problems
+    DenseSchur,           // For bundle adjustment style problems
+    SparseSchur,          // Sparse version of Schur
+    IterativeSchur,       // Iterative, good for large multi-view problems
+    CudaDenseCholesky,    // GPU-accelerated dense Cholesky (requires CUDA build)
+    CudaSparseCholesky    // GPU-accelerated sparse Cholesky (requires CUDA + SuiteSparse)
 };
 
 /**
@@ -157,6 +159,10 @@ struct SessionParams
     bool useGridPoses = true;
     bool fixFirstPose = true;
     bool verbose = false;
+
+    // CUDA options (only used when backend == Ceres)
+    bool useCuda = false;    // Enable CUDA acceleration for dense linear algebra
+    int cudaDeviceId = 0;    // GPU device to use (for multi-GPU systems)
 };
 
 /**
@@ -297,6 +303,15 @@ inline ceres::Solver::Options toCeresSolverOptions(const InnerParams& inner)
             break;
         case LinearSolverType::IterativeSchur:
             options.linear_solver_type = ceres::ITERATIVE_SCHUR;
+            break;
+        case LinearSolverType::CudaDenseCholesky:
+            options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+            options.dense_linear_algebra_library_type = ceres::CUDA;
+            break;
+        case LinearSolverType::CudaSparseCholesky:
+            // GPU-accelerated sparse via SuiteSparse CHOLMOD (requires CHOLMOD built with CUDA)
+            options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+            options.sparse_linear_algebra_library_type = ceres::SUITE_SPARSE;
             break;
     }
 
@@ -501,6 +516,29 @@ namespace MultiView
         p.useGridPoses = true;
         p.fixFirstPose = true;
         p.verbose = false;
+        return p;
+    }
+}
+
+/// Multi-view ICP with CUDA acceleration (requires Ceres built with CUDA)
+namespace MultiViewCuda
+{
+    inline InnerParams inner()
+    {
+        InnerParams p = MultiView::inner();
+        p.linearSolverType = LinearSolverType::CudaDenseCholesky;
+        return p;
+    }
+
+    inline OuterParams outer()
+    {
+        return MultiView::outer();
+    }
+
+    inline SessionParams session()
+    {
+        SessionParams p = MultiView::session();
+        p.useCuda = true;
         return p;
     }
 }

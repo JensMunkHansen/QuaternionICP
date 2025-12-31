@@ -89,10 +89,12 @@ struct CommonOptions
     // Linear solver type for Ceres
     enum class LinearSolver
     {
-        DenseQR,         // Default, good for small problems
-        DenseSchur,      // For bundle adjustment style problems
-        SparseSchur,     // Sparse version of Schur
-        IterativeSchur   // Iterative, good for very large problems
+        DenseQR,            // Default, good for small problems
+        DenseSchur,         // For bundle adjustment style problems
+        SparseSchur,        // Sparse version of Schur
+        IterativeSchur,     // Iterative, good for very large problems
+        CudaDenseCholesky,  // GPU-accelerated dense Cholesky
+        CudaSparseCholesky  // GPU-accelerated sparse Cholesky
     };
     LinearSolver linearSolver = LinearSolver::DenseQR;
 

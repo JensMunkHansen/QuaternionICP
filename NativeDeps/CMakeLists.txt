@@ -50,6 +50,7 @@ sps_get_version(TINYEXR_VERSION "v1.0.9")
 sps_get_version(GRIDSEARCH_VERSION "v1.0.0")
 sps_get_version(SIMDMATH_VERSION "v1.2.0")
 sps_get_version(CATCH2_VERSION "3.5.2")
+sps_get_version(SUITESPARSE_VERSION "7.6.0")
 
 # Build options
 option(BUILD_CATCH2 "Build and deploy Catch2 test framework" ON)
@@ -182,6 +183,50 @@ if(BUILD_ABSEIL)
 endif()
 
 #------------------------------------------------------------------------------
+# SuiteSparse - Sparse matrix factorization with optional GPU acceleration
+# (depends on Eigen3, optionally CUDA)
+#------------------------------------------------------------------------------
+if(USE_SUITESPARSE)
+  message(STATUS "Will build SuiteSparse ${SUITESPARSE_VERSION} (GPU: ${USE_CUDA})")
+
+  set(SUITESPARSE_DEPENDS "")
+  if(BUILD_EIGEN3)
+    list(APPEND SUITESPARSE_DEPENDS Eigen3)
+  endif()
+
+  set(SUITESPARSE_CMAKE_ARGS
+    ${COMMON_CMAKE_ARGS}
+    -DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX}
+    -DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config$<SEMICOLON>amd$<SEMICOLON>colamd$<SEMICOLON>camd$<SEMICOLON>ccolamd$<SEMICOLON>cholmod$<SEMICOLON>spqr
+    -DSUITESPARSE_USE_FORTRAN=OFF
+    -DBUILD_TESTING=OFF
+  )
+
+  # Enable CUDA for CHOLMOD if requested
+  if(USE_CUDA)
+    list(APPEND SUITESPARSE_CMAKE_ARGS
+      -DSUITESPARSE_USE_CUDA=ON
+      -DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}
+      -DCMAKE_CUDA_COMPILER=${CUDA_TOOLKIT_ROOT}/bin/nvcc
+    )
+  else()
+    list(APPEND SUITESPARSE_CMAKE_ARGS -DSUITESPARSE_USE_CUDA=OFF)
+  endif()
+
+  ExternalProject_Add(SuiteSparse
+    GIT_REPOSITORY https://github.com/DrTimothyAldenDavis/SuiteSparse.git
+    GIT_TAG        v${SUITESPARSE_VERSION}
+    GIT_SHALLOW    TRUE
+    UPDATE_COMMAND ""
+    DEPENDS        ${SUITESPARSE_DEPENDS}
+    CMAKE_ARGS     ${SUITESPARSE_CMAKE_ARGS}
+    LOG_BUILD ${EP_LOG_LEVEL}
+    LOG_CONFIGURE ${EP_LOG_LEVEL}
+    LOG_INSTALL ${EP_LOG_LEVEL}
+  )
+endif()
+
+#------------------------------------------------------------------------------
 # Ceres Solver - Nonlinear least squares (depends on Eigen3, Abseil)
 #------------------------------------------------------------------------------
 if(BUILD_CERES)
@@ -202,6 +247,9 @@ if(BUILD_CERES)
   endif()
   if(BUILD_ABSEIL)
     list(APPEND CERES_DEPENDS Abseil)
+  endif()
+  if(USE_SUITESPARSE)
+    list(APPEND CERES_DEPENDS SuiteSparse)
   endif()
 
   # Base Ceres arguments - minimal build
@@ -259,7 +307,10 @@ if(BUILD_CERES)
   # SuiteSparse support
   if(USE_SUITESPARSE)
     message(STATUS "  Ceres: SuiteSparse enabled")
-    list(APPEND CERES_CMAKE_ARGS -DSUITESPARSE=ON)
+    list(APPEND CERES_CMAKE_ARGS
+      -DSUITESPARSE=ON
+      -DSuiteSparse_DIR=${CMAKE_INSTALL_PREFIX}/lib/cmake/suitesparse-${SUITESPARSE_VERSION}
+    )
   endif()
 
   ExternalProject_Add(Ceres

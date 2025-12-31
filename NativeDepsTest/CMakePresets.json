@@ -1,0 +1,199 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 22,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "default",
+            "binaryDir": "build/${presetName}",
+            "generator": "Ninja Multi-Config"
+        },
+        {
+            "name": "linux-gcc-base",
+            "hidden": true,
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/gcc/install"
+            }
+        },
+        {
+            "name": "linux-gcc",
+            "inherits": ["default", "linux-gcc-base"],
+            "displayName": "Linux GCC (baseline)",
+            "cacheVariables": {
+                "USE_MKL": "OFF",
+                "USE_TBB": "OFF"
+            }
+        },
+        {
+            "name": "linux-gcc-mkl",
+            "inherits": ["default", "linux-gcc-base"],
+            "displayName": "Linux GCC + MKL",
+            "cacheVariables": {
+                "USE_MKL": "ON",
+                "USE_TBB": "OFF"
+            }
+        },
+        {
+            "name": "linux-gcc-tbb",
+            "inherits": ["default", "linux-gcc-base"],
+            "displayName": "Linux GCC + TBB",
+            "cacheVariables": {
+                "USE_MKL": "OFF",
+                "USE_TBB": "ON"
+            }
+        },
+        {
+            "name": "linux-gcc-mkl-tbb",
+            "inherits": ["default", "linux-gcc-base"],
+            "displayName": "Linux GCC + MKL + TBB",
+            "cacheVariables": {
+                "USE_MKL": "ON",
+                "USE_TBB": "ON"
+            }
+        },
+        {
+            "name": "linux-clang",
+            "inherits": "default",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            },
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/clang/install"
+            }
+        },
+        {
+            "name": "windows-msvc",
+            "inherits": "default",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl",
+                "CMAKE_CXX_COMPILER": "cl",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/cl/install"
+            }
+        },
+        {
+            "name": "windows-clangcl",
+            "inherits": "default",
+            "displayName": "Windows CLANG-CL",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_CXX_COMPILER": "clang-cl",
+                "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/clang-cl/install"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug",
+            "configurePreset": "linux-gcc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release",
+            "configurePreset": "linux-gcc",
+            "configuration": "Release"
+        },
+        {
+            "name": "Release-mkl",
+            "configurePreset": "linux-gcc-mkl",
+            "configuration": "Release"
+        },
+        {
+            "name": "Release-tbb",
+            "configurePreset": "linux-gcc-tbb",
+            "configuration": "Release"
+        },
+        {
+            "name": "Release-mkl-tbb",
+            "configurePreset": "linux-gcc-mkl-tbb",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug-clang",
+            "configurePreset": "linux-clang",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release-clang",
+            "configurePreset": "linux-clang",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug-windows",
+            "configurePreset": "windows-msvc",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release-windows",
+            "configurePreset": "windows-msvc",
+            "configuration": "Release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "core-test",
+            "description": "Baseline (no MKL/TBB)",
+            "configurePreset": "linux-gcc",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "core-test-mkl",
+            "description": "With MKL",
+            "configurePreset": "linux-gcc-mkl",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "core-test-tbb",
+            "description": "With TBB",
+            "configurePreset": "linux-gcc-tbb",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "core-test-mkl-tbb",
+            "description": "With MKL + TBB",
+            "configurePreset": "linux-gcc-mkl-tbb",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "core-test-clang",
+            "description": "Enable output on failure",
+            "configurePreset": "linux-clang",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

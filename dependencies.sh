@@ -23,10 +23,9 @@ Options:
 
 Optional CMake flags (pass directly):
   -DUSE_MKL=ON          Enable Intel MKL for LAPACK/BLAS
-                        Requires: source /opt/intel/oneapi/setvars.sh
+                        Requires: MKLROOT set (e.g., in .bashrc)
 
   -DUSE_TBB=ON          Enable Intel TBB for parallel algorithms
-                        Requires: source /opt/intel/oneapi/setvars.sh
 
   -DUSE_CUDA=ON         Enable CUDA support for GPU acceleration
                         Requires: CUDA toolkit installed
@@ -116,19 +115,16 @@ echo "=============================================="
 echo "MultiRegistration Dependencies Builder"
 echo "=============================================="
 
-# Check for Intel oneAPI if MKL or TBB requested
-if [[ "${CMAKE_ARGS[*]}" == *"USE_MKL=ON"* ]] || [[ "${CMAKE_ARGS[*]}" == *"USE_TBB=ON"* ]]; then
-    if [ -z "$MKLROOT" ] || [ -z "$TBBROOT" ]; then
+# Check for MKL
+if [[ "${CMAKE_ARGS[*]}" == *"USE_MKL=ON"* ]]; then
+    if [ -z "$MKLROOT" ]; then
         echo ""
-        echo "ERROR: MKL or TBB requested but oneAPI environment not set."
-        echo "Please run first:"
-        echo "  source /opt/intel/oneapi/setvars.sh"
+        echo "ERROR: USE_MKL=ON but MKLROOT not set."
+        echo "Add to .bashrc:  export MKLROOT=/opt/intel/oneapi/mkl/latest"
         echo ""
         exit 1
     fi
-    echo "Intel oneAPI detected:"
-    echo "  MKLROOT: $MKLROOT"
-    echo "  TBBROOT: $TBBROOT"
+    echo "MKL: $MKLROOT"
 fi
 
 echo ""

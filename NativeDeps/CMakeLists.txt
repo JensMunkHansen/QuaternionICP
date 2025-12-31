@@ -85,13 +85,24 @@ endif()
 set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures")
 
 #------------------------------------------------------------------------------
-# MKL detection (for Ceres LAPACK)
+# MKL detection (for Ceres LAPACK) - uses spsMKL for detection
 #------------------------------------------------------------------------------
 if(USE_MKL)
-  if(NOT DEFINED ENV{MKLROOT})
-    message(FATAL_ERROR "USE_MKL=ON but MKLROOT not set. Run: source /opt/intel/oneapi/setvars.sh")
+  include(spsMKL)
+  sps_find_mkl()
+
+  if(NOT SPS_MKL_FOUND)
+    message(FATAL_ERROR "USE_MKL=ON but MKL not found. Set MKLROOT in .bashrc")
   endif()
-  message(STATUS "MKLROOT: $ENV{MKLROOT}")
+
+  # Determine BLA_VENDOR based on whether iomp5 was found
+  if(TARGET MKL::iomp5)
+    set(MKL_BLA_VENDOR "Intel10_64lp")  # Threaded
+  else()
+    set(MKL_BLA_VENDOR "Intel10_64lp_seq")  # Sequential
+  endif()
+
+  set(MKLROOT "$ENV{MKLROOT}")
 endif()
 
 #------------------------------------------------------------------------------
@@ -200,6 +211,7 @@ if(USE_SUITESPARSE)
     -DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config$<SEMICOLON>amd$<SEMICOLON>colamd$<SEMICOLON>camd$<SEMICOLON>ccolamd$<SEMICOLON>cholmod$<SEMICOLON>spqr
     -DSUITESPARSE_USE_FORTRAN=OFF
     -DBUILD_TESTING=OFF
+    -DBLA_VENDOR=Generic
   )
 
   # Enable CUDA for CHOLMOD if requested
@@ -282,10 +294,13 @@ if(BUILD_CERES)
 
   # MKL/LAPACK support
   if(USE_MKL)
-    message(STATUS "  Ceres: MKL/LAPACK enabled")
+    message(STATUS "  Ceres: MKL/LAPACK enabled (${MKL_BLA_VENDOR})")
+    # Pass MKL location so FindBLAS can find it without setvars.sh
     list(APPEND CERES_CMAKE_ARGS
       -DLAPACK=ON
-      -DBLA_VENDOR=Intel10_64lp_seq
+      -DBLA_VENDOR=${MKL_BLA_VENDOR}
+      -DMKLROOT=${MKLROOT}
+      "-DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX};${MKLROOT}/lib/cmake"
     )
   else()
     list(APPEND CERES_CMAKE_ARGS -DLAPACK=OFF)

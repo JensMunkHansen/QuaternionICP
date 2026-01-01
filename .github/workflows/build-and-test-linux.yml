@@ -51,6 +51,36 @@ on:
   #     - main
 
 jobs:
+  # Automatic builds on push/PR (currently disabled via triggers above)
+  build-and-test:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - compiler: gcc
+            build-type: Release
+          - compiler: gcc
+            build-type: Asan
+      fail-fast: false
+
+    env:
+      COMPILER: ${{ matrix.compiler }}
+      BUILD_TYPE: ${{ matrix.build-type }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build and Test
+        uses: ./.github/actions/build-test-linux
+        with:
+          compiler: ${{ matrix.compiler }}
+          build-type: ${{ matrix.build-type }}
+
   # Manual builds - single configuration
   build-and-test-manual-single:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.build-mode == 'single'

@@ -47,7 +47,6 @@ set(ICP_HEADERS
     Grid.h
     GridFactory.h
     GridLoader.h
-    GridSearchBackend.h
     ICPCeresSolver.h
     ICPCeresTwoPose.h
     ICPHelpers.h
@@ -62,6 +61,10 @@ set(ICP_HEADERS
     TestGridUtils.h
     TriangulationMarks.h
 )
+
+if(USE_GRIDSEARCH)
+    list(APPEND ICP_HEADERS GridSearchBackend.h)
+endif()
 
 if(USE_EMBREE)
     list(APPEND ICP_HEADERS EmbreeBackend.h)

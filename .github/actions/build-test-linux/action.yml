@@ -66,9 +66,9 @@ runs:
         path: |
           ${{ github.workspace }}/Linux/gcc/install
           ${{ github.workspace }}/Linux/gcc/build
-        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v1
+        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v2
         restore-keys: |
-          deps-gcc-${{ runner.os }}-main-${{ steps.deps-checksum.outputs.checksum }}-v1
+          deps-gcc-${{ runner.os }}-main-${{ steps.deps-checksum.outputs.checksum }}-v2
 
     - name: Check if dependencies were restored
       id: check-deps
@@ -112,7 +112,7 @@ runs:
         path: |
           ${{ github.workspace }}/Linux/gcc/install
           ${{ github.workspace }}/Linux/gcc/build
-        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v1
+        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v2
 
     - name: Verify dependencies
       shell: bash

@@ -1,3 +1,25 @@
+#pragma once
+
+#include <ICP/Config.h>
+
+#if ICP_USE_GRIDSEARCH
+#include <GridSearch/GridSearchTypesC.h>
+#else
+// Define GridSearch-compatible types and constants when GridSearch is not available
+#include <cstdint>
+using GridSearchMark = uint8_t;
+#define GRIDSEARCH_MARK_VALID (1 << 0)
+#define GRIDSEARCH_MARK_VERTEX_POINT (1 << 1)
+#define GRIDSEARCH_MARK_QUAD_LOWER (1 << 3)
+#define GRIDSEARCH_MARK_QUAD_UPPER (1 << 4)
+#define GRIDSEARCH_MARK_QUAD_DIAGONAL (1 << 5)
+#define GRIDSEARCH_FACET_CONFIG_LL 0x00000
+#define GRIDSEARCH_FACET_CONFIG_UR 0x10000
+#define GRIDSEARCH_FACET_CONFIG_LR 0x20000
+#define GRIDSEARCH_FACET_CONFIG_UL 0x30000
+#define GRIDSEARCH_FACET_CONFIG_MASK 0x30000
+#endif
+
 /**
  * @file TriangulationMarks.h
  * @brief C++ wrapper for GridSearch triangulation mark constants.
@@ -17,11 +39,6 @@
  * - Lower bits: vertex index in the grid
  * - Upper bits: facet configuration (LL, UR, LR, UL)
  */
-
-#pragma once
-
-// GridSearch headers
-#include <GridSearch/GridSearchTypesC.h>
 
 namespace TriangulationMarks
 {

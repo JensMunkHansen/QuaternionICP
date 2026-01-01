@@ -125,8 +125,13 @@ if(USE_MKL)
     get_filename_component(_mkl_lib_dir "${MKL_CORE_LIB}" DIRECTORY)
     get_filename_component(MKLROOT "${_mkl_lib_dir}" DIRECTORY)
   endif()
+
+  # Disable other openmp libraries
+  sps_ep_args_disable_openmp(EP_NO_OPENMP_ARGS)
+  
   message(STATUS "  MKLROOT: ${MKLROOT}")
 endif()
+
 
 #------------------------------------------------------------------------------
 # TBB detection (for Ceres threading)
@@ -139,31 +144,37 @@ if(USE_TBB)
   message(STATUS "TBB_DIR: ${TBB_DIR}")
 endif()
 
+set(_base_install_rpath "${CMAKE_INSTALL_PREFIX}/lib")
+
 # Additional RPATH for MKL (if enabled)
-set(_mkl_rpath "")
+set(EP_MKL_RPATH_ARGS "")
 if(USE_MKL AND MKLROOT)
-  set(_mkl_rpath "$<SEMICOLON>${MKLROOT}/lib")
+  set(_mkl_rpath_list "${_base_install_rpath};${MKLROOT}/lib")
   if(IOMP5_LIB_DIR)
-    set(_mkl_rpath "${_mkl_rpath}$<SEMICOLON>${IOMP5_LIB_DIR}")
+    list(APPEND _mkl_rpath_list "${IOMP5_LIB_DIR}")
   endif()
+
+  string(REPLACE ";" "$<SEMICOLON>" _mkl_rpath_str "${_mkl_rpath_list}")
+  set(EP_MKL_RPATH_ARGS "-DCMAKE_INSTALL_RPATH:STRING=${_mkl_rpath_str}")
 endif()
 
 # Common CMake arguments for all ExternalProject_Add
 set(COMMON_CMAKE_ARGS
   -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
-  -DCMAKE_INSTALL_RPATH=${CMAKE_INSTALL_PREFIX}/lib${_mkl_rpath}
+  -DCMAKE_INSTALL_RPATH:STRING=${_base_install_rpath_str}
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   -DCMAKE_CXX_STANDARD=17
   -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
 )
 
-#------------------------------------------------------------------------------
-# NOTE: MKL integration happens at application level, not here.
-# Use CMake/spsMKL.cmake in your application:
-#   include(spsMKL)
-#   sps_target_link_mkl(myapp)
-#------------------------------------------------------------------------------
+set(NO_OPENMP_CMAKE_ARGS "")
+if(USE_MKL AND SPS_MKL_THREADED)
+  # Critical: prevent any ExternalProject from finding/linking GCC OpenMP (libgomp)
+  list(APPEND NO_OPENMP_CMAKE_ARGS
+    -DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=TRUE
+  )
+endif()
 
 if (BUILD_CATCH2)
   message("Catch2 will be build")
@@ -181,7 +192,6 @@ if (BUILD_CATCH2)
     LOG_CONFIGURE ${EP_LOG_LEVEL}
     LOG_INSTALL ${EP_LOG_LEVEL})
 endif()
-
 
 #------------------------------------------------------------------------------
 # Eigen3 - Header-only linear algebra library (no dependencies)
@@ -261,17 +271,30 @@ if(USE_SUITESPARSE)
       endif()
     else()
       # Method 1: Construct from MKLROOT (oneAPI CMake config)
+      # Use CMake's platform-specific library naming conventions
+      if(WIN32)
+        set(_mkl_lib_dir "${MKLROOT}/lib/intel64")
+        set(_mkl_prefix "")
+        set(_mkl_suffix "${CMAKE_IMPORT_LIBRARY_SUFFIX}")  # .lib
+        set(_iomp5_name "libiomp5md")
+      else()
+        set(_mkl_lib_dir "${MKLROOT}/lib")
+        set(_mkl_prefix "${CMAKE_SHARED_LIBRARY_PREFIX}")  # lib
+        set(_mkl_suffix "${CMAKE_SHARED_LIBRARY_SUFFIX}")  # .so
+        set(_iomp5_name "iomp5")
+      endif()
+
       set(_mkl_libs
-        "${MKLROOT}/lib/libmkl_intel_ilp64.so"
-        "${MKLROOT}/lib/libmkl_core.so"
+        "${_mkl_lib_dir}/${_mkl_prefix}mkl_intel_ilp64${_mkl_suffix}"
+        "${_mkl_lib_dir}/${_mkl_prefix}mkl_core${_mkl_suffix}"
       )
       if(SPS_MKL_THREADED)
         list(APPEND _mkl_libs
-          "${MKLROOT}/lib/libmkl_intel_thread.so"
-          "${IOMP5_LIB_DIR}/libiomp5.so"
+          "${_mkl_lib_dir}/${_mkl_prefix}mkl_intel_thread${_mkl_suffix}"
+          "${IOMP5_LIB_DIR}/${_mkl_prefix}${_iomp5_name}${_mkl_suffix}"
         )
       else()
-        list(APPEND _mkl_libs "${MKLROOT}/lib/libmkl_sequential.so")
+        list(APPEND _mkl_libs "${_mkl_lib_dir}/${_mkl_prefix}mkl_sequential${_mkl_suffix}")
       endif()
     endif()
 
@@ -288,6 +311,7 @@ if(USE_SUITESPARSE)
       "-DBLAS_INCLUDE_DIRS:STRING=${MKLROOT}/include"
     )
     message(STATUS "  SuiteSparse BLAS: ${_mkl_libs}")
+    list(APPEND SUITESPARSE_CMAKE_ARGS ${EP_MKL_RPATH_ARGS})    
   else()
     list(APPEND SUITESPARSE_CMAKE_ARGS
       -DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX}
@@ -305,6 +329,11 @@ if(USE_SUITESPARSE)
   else()
     list(APPEND SUITESPARSE_CMAKE_ARGS -DSUITESPARSE_USE_CUDA=OFF)
   endif()
+  list(APPEND SUITESPARSE_CMAKE_ARGS
+    #${NO_OPENMP_CMAKE_ARGS}
+    ${EP_NO_OPENMP_ARGS}    
+    -DSUITESPARSE_USE_OPENMP=OFF
+  )
 
   ExternalProject_Add(SuiteSparse
     GIT_REPOSITORY https://github.com/DrTimothyAldenDavis/SuiteSparse.git
@@ -358,6 +387,7 @@ if(BUILD_CERES)
     -DGFLAGS=OFF
     -DSUITESPARSE=OFF
     -DCXSPARSE=OFF
+    ${EP_NO_OPENMP_ARGS}    
     -DACCELERATESPARSE=OFF
     -DEIGENSPARSE=ON
     -DUSE_CUDA=OFF
@@ -395,6 +425,7 @@ if(BUILD_CERES)
       "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX};${MKLROOT}"
       "-DCMAKE_LIBRARY_PATH:STRING=${_ceres_lib_path}"
     )
+    list(APPEND CERES_CMAKE_ARGS ${EP_MKL_RPATH_ARGS})    
   else()
     list(APPEND CERES_CMAKE_ARGS -DLAPACK=OFF)
   endif()
@@ -407,6 +438,7 @@ if(BUILD_CERES)
       -DTBB_DIR=${TBB_DIR}
     )
   else()
+    find_package(Threads QUIET)
     list(APPEND CERES_CMAKE_ARGS
       -DCERES_THREADING_MODEL=CXX_THREADS
     )

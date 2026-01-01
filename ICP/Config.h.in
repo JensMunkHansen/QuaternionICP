@@ -25,5 +25,8 @@
 /// TBB available for parallel algorithms
 #cmakedefine01 ICP_USE_TBB
 
+/// GridSearch available for structured grid intersection
+#cmakedefine01 ICP_USE_GRIDSEARCH
+
 /// Embree available for ray tracing (alternative to GridSearch)
 #cmakedefine01 ICP_USE_EMBREE

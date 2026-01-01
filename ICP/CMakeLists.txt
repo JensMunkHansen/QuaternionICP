@@ -3,10 +3,19 @@ find_package(Ceres REQUIRED)
 find_package(Sophus REQUIRED)
 include(spsArgs)
 find_package(tinyexr REQUIRED)
-find_package(GridSearch REQUIRED)
 
-# Optional Embree support (alternative ray tracing backend)
+# Intersection backend options (at least one must be enabled)
+option(USE_GRIDSEARCH "Use GridSearch for ray-grid intersection" ON)
 option(USE_EMBREE "Use Intel Embree for ray tracing" OFF)
+
+if(NOT USE_GRIDSEARCH AND NOT USE_EMBREE)
+    message(FATAL_ERROR "At least one intersection backend must be enabled (USE_GRIDSEARCH or USE_EMBREE)")
+endif()
+
+if(USE_GRIDSEARCH)
+    find_package(GridSearch REQUIRED)
+endif()
+
 if(USE_EMBREE)
     find_package(embree 4 REQUIRED)
 endif()
@@ -18,7 +27,8 @@ sps_detect_ceres_features()
 # Set additional config variables
 set(ICP_HAS_MKL ${USE_MKL} CACHE BOOL "Intel MKL available" FORCE)
 set(ICP_USE_TBB ${USE_TBB} CACHE BOOL "TBB enabled" FORCE)
-set(ICP_USE_EMBREE ${USE_EMBREE} CACHE BOOL "Embree ray tracing" FORCE)
+set(ICP_USE_GRIDSEARCH ${USE_GRIDSEARCH} CACHE BOOL "GridSearch backend" FORCE)
+set(ICP_USE_EMBREE ${USE_EMBREE} CACHE BOOL "Embree backend" FORCE)
 
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/Config.h.in
@@ -73,7 +83,6 @@ target_include_directories(${TARGET_NAME} PUBLIC
 target_link_libraries(${TARGET_NAME} PUBLIC
     build
     Eigen3::Eigen
-    GridSearch::GridSearch
     Ceres::ceres
     Sophus::Sophus
     tinyexr::tinyexr
@@ -87,6 +96,10 @@ endif()
 
 if(USE_MKL AND TARGET MKL::MKL)
     sps_target_link_mkl(${TARGET_NAME})
+endif()
+
+if(USE_GRIDSEARCH)
+    target_link_libraries(${TARGET_NAME} PRIVATE GridSearch::GridSearch)
 endif()
 
 if(USE_EMBREE)

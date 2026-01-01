@@ -13,3 +13,14 @@ add_icp_test(ICPCeresTest)
 add_icp_test(ICPCeresTwoPoseTest)
 add_icp_test(ICPLevenbergMarquardtTest)
 add_icp_test(ParameterPropagationTest)
+
+# Embree-specific tests
+if(USE_EMBREE)
+    add_executable(EmbreeTest EmbreeTest.cpp)
+    target_link_libraries(EmbreeTest PRIVATE ICP ${EMBREE_LIBRARIES} Catch2::Catch2WithMain)
+    catch_discover_tests(EmbreeTest)
+
+    add_executable(BackendComparisonTest BackendComparisonTest.cpp)
+    target_link_libraries(BackendComparisonTest PRIVATE ICP ${EMBREE_LIBRARIES} Catch2::Catch2WithMain)
+    catch_discover_tests(BackendComparisonTest)
+endif()

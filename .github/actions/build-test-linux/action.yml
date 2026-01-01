@@ -207,7 +207,7 @@ runs:
         cmake --build $BUILD_DIR --target doc
         echo "::endgroup::"
 
-    - name: Upload documentation
+    - name: Upload documentation artifact
       if: inputs.build-docs == 'true'
       uses: actions/upload-artifact@v4
       with:
@@ -215,6 +215,14 @@ runs:
         path: ${{ github.workspace }}/build/**/doc/html
         retention-days: 30
         if-no-files-found: warn
+
+    - name: Deploy to GitHub Pages
+      if: inputs.build-docs == 'true' && github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ github.token }}
+        publish_dir: ${{ github.workspace }}/build/linux-gcc-ci/doc/html
+        force_orphan: true
 
     - name: Upload test logs on failure
       if: failure()

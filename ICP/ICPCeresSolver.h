@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 /**
  * @file ICPCeresSolver.h
  * @brief Ceres-based ICP solver with inner and outer loops.

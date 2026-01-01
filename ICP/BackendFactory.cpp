@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 // Internal headers
 #include <ICP/Config.h>
 #include <ICP/IntersectionBackend.h>

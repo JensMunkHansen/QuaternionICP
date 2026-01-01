@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 #pragma once
 /**
  * Ambient (7D) Jacobians for ray-projection ICP.

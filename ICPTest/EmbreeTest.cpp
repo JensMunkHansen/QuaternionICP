@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 /**
  * @file EmbreeTest.cpp
  * @brief Basic tests to understand and validate Embree 4 API usage.

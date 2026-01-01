@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 /**
  * @file ICPSolver.h
  * @brief Hand-rolled ICP solver with Gauss-Newton and Levenberg-Marquardt.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 /**
  * Test for ambient jacobians with proper finite difference validation.
  *

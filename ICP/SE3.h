@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 /**
  * @file SE3.h
  * @brief SE(3) Lie group utilities for manifold Gauss-Newton optimization.

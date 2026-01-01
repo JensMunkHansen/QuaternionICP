@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 #include <Eigen/Dense>
 #include <chrono>
 #include <cstring>

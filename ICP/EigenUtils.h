@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 /**
  * @file EigenUtils.h
  * @brief Eigen utilities for random generation, pose manipulation, and common operations.

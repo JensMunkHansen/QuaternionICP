@@ -2,6 +2,8 @@
 
 Multi-view point cloud registration using ray-projected ICP with quaternion parameterization.
 
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://jensmunkhansen.github.io/QuaternionICP/)
+
 ## Dependencies
 
 **Required (built by `dependencies.sh`):**

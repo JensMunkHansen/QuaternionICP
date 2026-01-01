@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) Jens Munk Hansen
+
 /**
  * @file EigenTypes.h
  * @brief Eigen type aliases for the ICP namespace.

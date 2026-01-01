@@ -9,7 +9,9 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ICP
 )
 
-sps_mkl_verify_no_mixed_openmp_ldd(${TARGET_NAME})
+if(USE_MKL)
+  sps_mkl_verify_no_mixed_openmp_ldd(${TARGET_NAME})
+endif()
 
 # Create symlink and install shell completion
 sps_args_completion(${TARGET_NAME})

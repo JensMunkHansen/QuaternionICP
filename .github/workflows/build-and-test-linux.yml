@@ -38,6 +38,11 @@ on:
         required: false
         default: false
         type: boolean
+      build-docs:
+        description: "Build and upload documentation"
+        required: false
+        default: false
+        type: boolean
   # Temporarily disabled - debugging CI
   # pull_request:
   #   types:
@@ -80,6 +85,7 @@ jobs:
         with:
           compiler: ${{ matrix.compiler }}
           build-type: ${{ matrix.build-type }}
+          build-docs: 'false'
 
   # Manual builds - single configuration
   build-and-test-manual-single:
@@ -102,6 +108,7 @@ jobs:
         with:
           compiler: ${{ github.event.inputs.compiler }}
           build-type: ${{ github.event.inputs.build-type }}
+          build-docs: ${{ github.event.inputs.build-docs }}
 
   # Manual builds - all configurations (gcc only)
   build-and-test-manual-all:
@@ -129,3 +136,4 @@ jobs:
         with:
           compiler: ${{ matrix.compiler }}
           build-type: ${{ matrix.build-type }}
+          build-docs: ${{ github.event.inputs.build-docs }}

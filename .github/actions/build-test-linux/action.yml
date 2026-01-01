@@ -8,6 +8,10 @@ inputs:
   build-type:
     description: 'Build type (Debug, Release, Asan)'
     required: true
+  build-docs:
+    description: 'Build and upload documentation'
+    required: false
+    default: 'false'
 
 runs:
   using: composite
@@ -36,7 +40,7 @@ runs:
       run: |
         echo "::group::Install system dependencies"
         sudo apt-get update
-        sudo apt-get install -y ninja-build cmake g++ clang libembree-dev libunwind-dev libceres-dev
+        sudo apt-get install -y ninja-build cmake g++ clang libembree-dev libunwind-dev libceres-dev doxygen graphviz
         echo "::endgroup::"
 
     - name: Set MULTI_REGISTRATION_ROOT
@@ -174,7 +178,11 @@ runs:
       shell: bash
       run: |
         echo "::group::Configure project"
-        cmake --preset $PRESET -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+        BUILD_DOCS_FLAG=""
+        if [ "${{ inputs.build-docs }}" = "true" ]; then
+          BUILD_DOCS_FLAG="-DBUILD_DOCUMENTATION=ON"
+        fi
+        cmake --preset $PRESET -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" $BUILD_DOCS_FLAG
         echo "::endgroup::"
 
     - name: Build project
@@ -190,6 +198,23 @@ runs:
         echo "::group::Run tests"
         ctest --preset $TEST_PRESET --test-dir $BUILD_DIR -C $BUILD_TYPE
         echo "::endgroup::"
+
+    - name: Build documentation
+      if: inputs.build-docs == 'true'
+      shell: bash
+      run: |
+        echo "::group::Build documentation"
+        cmake --build $BUILD_DIR --target doc
+        echo "::endgroup::"
+
+    - name: Upload documentation
+      if: inputs.build-docs == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation-${{ github.run_number }}
+        path: ${{ github.workspace }}/build/**/doc/html
+        retention-days: 30
+        if-no-files-found: warn
 
     - name: Upload test logs on failure
       if: failure()

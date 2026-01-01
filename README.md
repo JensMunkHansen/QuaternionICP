@@ -153,3 +153,20 @@ cmake --build build/linux-gcc --target doc
 ```
 
 Output: `build/linux-gcc/doc/html/index.html`
+
+## Continuous Integration
+
+The CI workflow runs on Ubuntu 24.04 with a minimal dependency configuration:
+
+| Component | CI Configuration |
+|-----------|------------------|
+| Intersection backend | Embree 4 (system `libembree-dev`) |
+| Nonlinear solver | Ceres 2.2 (system `libceres-dev`) |
+| Sparse solvers | SuiteSparse (via `libceres-dev`) |
+| Intel MKL | Disabled |
+| GridSearch | Disabled (requires private repo) |
+| SIMDMath | Disabled (requires private repo) |
+
+Dependencies built from source: Eigen3, Sophus, Catch2, args, miniz, tinyexr.
+
+The CI uses `linux-gcc-ci` and `linux-clang-ci` presets which set `USE_EMBREE=ON` and `USE_GRIDSEARCH=OFF`.

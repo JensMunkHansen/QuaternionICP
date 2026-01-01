@@ -33,6 +33,13 @@ if(USE_MKL)
     sps_find_mkl()
 endif()
 
+# Detect CI environment (GitHub Actions sets GITHUB_ACTIONS=true)
+if(DEFINED ENV{GITHUB_ACTIONS})
+    set(ICP_CI_BUILD ON)
+else()
+    set(ICP_CI_BUILD OFF)
+endif()
+
 # Enable testing
 option(BUILD_TESTING "Build tests" ON)
 add_subdirectory(ICP)

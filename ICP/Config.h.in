@@ -30,3 +30,6 @@
 
 /// Embree available for ray tracing (alternative to GridSearch)
 #cmakedefine01 ICP_USE_EMBREE
+
+/// Running in CI environment (GitHub Actions, etc.)
+#cmakedefine01 ICP_CI_BUILD

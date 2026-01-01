@@ -1,8 +1,9 @@
 name: Build and Test Linux with Cached Dependencies
 
-concurrency:
-  group: ci-linux-${{ github.ref }}
-  cancel-in-progress: true
+# Temporarily disabled - zombie runner blocking queue
+# concurrency:
+#   group: ci-linux-${{ github.ref }}
+#   cancel-in-progress: true
 
 on:
   workflow_dispatch:

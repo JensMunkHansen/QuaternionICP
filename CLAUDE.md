@@ -1,5 +1,37 @@
 # QuaternionICP Development Notes
 
+## Current TODO: Embree Backend Implementation
+
+**Status:** Infrastructure complete, stub implementation needs to be finished.
+
+**What's done:**
+- `IntersectionBackend.h` - Abstract interface for ray-mesh intersection backends
+- `GridSearchBackend.h` - GridSearch implementation (zero overhead, production ready)
+- `EmbreeBackend.h` - Stub implementation (compiles but returns empty results)
+- CMake: `USE_EMBREE` option, `find_package(embree 4)`, `ICP_USE_EMBREE` in Config.h
+- Grid caches backend via `getBackend()` (lazy initialization)
+- Correspondences.h uses backend abstraction
+
+**What's needed:**
+1. Implement `EmbreeBackend::build()` - extract triangles from Grid, build Embree BVH
+2. Implement `EmbreeBackend::intersectParallel()` - ray tracing with Embree
+3. Test with `-DUSE_EMBREE=ON` and verify results match GridSearch
+
+**Key files:**
+- `ICP/IntersectionBackend.h` - interface
+- `ICP/GridSearchBackend.h` - working implementation + factory function
+- `ICP/EmbreeBackend.h` - stub to be completed
+- `ICP/Grid.h` - `getBackend()` method
+- `ICP/Correspondences.h` - uses `tgtGrid.getBackend().intersectParallel(...)`
+
+**Build with Embree:**
+```bash
+cmake --preset linux-gcc -DUSE_EMBREE=ON
+cmake --build build/linux-gcc --config Release
+```
+
+---
+
 ## Environment
 
 - Python virtual environment: `source ~/Environments/py313/bin/activate`
@@ -24,22 +56,17 @@
 5. ~~**Two-pose Jacobians**~~ - `JacobiansAmbientTwoPose.h` with consistent/simplified variants ✓
    - ✓ Forward and reverse ray cost functions
    - ✓ FD validation with epsilon sweep
+6. ~~**MultiICP Infrastructure**~~ ✓
+   - ✓ AABB boxes for grids (`Grid::AABB`, `computeWorldAABB()`)
+   - ✓ Compute potential edges using AABB overlap
+   - ✓ Load EXR files and test two-file registration
+7. ~~**Grid Refactoring**~~ ✓
+   - ✓ Grid struct: `initialPose` (Isometry3d) and `pose` (Pose7)
+   - ✓ Intersection backend abstraction (`IntersectionBackend`, `GridSearchBackend`)
+   - ✓ Embree support infrastructure (CMake option, stub backend)
+8. ~~**Ceres Two-Pose Integration**~~ ✓
 
-### In Progress
-6. **MultiICP Infrastructure**
-   - ✗ AABB boxes for grids (bounding volume)
-   - ✗ Compute potential edges using AABB overlap
-   - ✗ Load EXR files and test two-file registration with SingleICP
-
-7. **Code Refactoring**
-   - ✗ Move random noise utilities out of SingleICP main (share with MultiICP)
-   - ✗ Grid struct: add initial pose (`Pose7`) and running pose for multiview
-
-8. **Ceres Two-Pose Integration**
-   - ✗ Implement Ceres problem using `<1,7,7>` cost functions
-   - ✗ Reuse `InnerParams`, extend `OuterParams` (add `SCHUR_ITERATIVE`)
-
-### Testing & Validation
+### Upcoming
 9. **MultiICP Testing**
    - ✗ Test multiview with 2 grids against SingleICP reference
    - ✗ Test with collection of up to 5000 grids

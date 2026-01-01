@@ -2,6 +2,7 @@
 
 // Standard C++ headers
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -9,11 +10,26 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
+// Forward declarations
+namespace ICP
+{
+class IntersectionBackend;
+}
+
 // Pose7: [qx, qy, qz, qw, tx, ty, tz]
 using GridPose7 = Eigen::Matrix<double, 7, 1>;
 
 struct Grid
 {
+    // All special member functions must be defined in Grid.cpp
+    // where IntersectionBackend is complete (due to unique_ptr member)
+    Grid();
+    ~Grid();
+    Grid(Grid&&) noexcept;
+    Grid& operator=(Grid&&) noexcept;
+    Grid(const Grid& other);
+    Grid& operator=(const Grid& other);
+
     // Full grid data in AOS format (width * height * 3 floats) for GridSearch
     std::vector<float> verticesAOS;
     std::vector<uint8_t> marks;
@@ -203,4 +219,25 @@ struct Grid
      * @param seed Random seed for reproducibility (0 = random)
      */
     void perturbPose(double rotationDeg, double translationUnits, unsigned int seed = 0);
+
+    /**
+     * Get the intersection backend for this grid.
+     *
+     * The backend is lazily created on first access and cached for subsequent calls.
+     * The grid data must not change after first access, or call invalidateBackend().
+     *
+     * @return Reference to the intersection backend
+     */
+    ICP::IntersectionBackend& getBackend() const;
+
+    /**
+     * Invalidate the cached backend.
+     *
+     * Call this if grid vertices or marks are modified after backend creation.
+     */
+    void invalidateBackend();
+
+private:
+    // Cached intersection backend (lazy-initialized)
+    mutable std::unique_ptr<ICP::IntersectionBackend> backend_;
 };

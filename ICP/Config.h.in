@@ -24,3 +24,6 @@
 
 /// TBB available for parallel algorithms
 #cmakedefine01 ICP_USE_TBB
+
+/// Embree available for ray tracing (alternative to GridSearch)
+#cmakedefine01 ICP_USE_EMBREE

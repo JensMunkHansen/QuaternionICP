@@ -7,11 +7,9 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
-// GridSearch headers
-#include <GridSearch/GridSearchC.h>
-
 // Internal headers
 #include <ICP/Grid.h>
+#include <ICP/IntersectionBackend.h>
 
 namespace ICP
 {
@@ -27,7 +25,7 @@ struct Correspondence
 };
 
 /**
- * Compute ray-grid correspondences using GridSearch.
+ * Compute ray-grid correspondences using the grid's intersection backend.
  *
  * Shoots rays from source grid vertices along a given direction and finds
  * intersections with the target grid mesh.
@@ -50,14 +48,6 @@ inline std::vector<Correspondence> computeRayCorrespondences(
     int subsampleX = 1,
     int subsampleY = 1)
 {
-    std::vector<Correspondence> correspondences;
-
-    // Create projection for target grid
-    GridSearchProjection* projection = GridSearch_CreateLinearProjectionWithOffset(
-        tgtGrid.dx(), tgtGrid.dy(),
-        tgtGrid.offsetX(), tgtGrid.offsetY(), tgtGrid.offsetZ()
-    );
-
     // Get ray origins from source grid (valid triangle vertices)
     std::vector<int> srcIndices = srcGrid.getTriangleVertexIndices(subsampleX, subsampleY);
     std::vector<float> origins = srcGrid.getTriangleVertices(subsampleX, subsampleY);
@@ -65,53 +55,33 @@ inline std::vector<Correspondence> computeRayCorrespondences(
 
     if (nRays == 0)
     {
-        GridSearch_DestroyProjection(projection);
-        return correspondences;
+        return {};
     }
 
-    // Row-major 4x4 transform for GridSearch
-    using RowMajor4d = Eigen::Matrix<double, 4, 4, Eigen::RowMajor>;
-    RowMajor4d worldToGrid = srcToTgt.matrix();
-
-    // Call GridSearch
-    GridSearchHit* results = nullptr;
-    int hitCount = 0;
-
-    GridSearch_ComputeIntersectionsParallel(
+    // Use target grid's backend for intersection
+    auto hits = tgtGrid.getBackend().intersectParallel(
         origins.data(),
-        rayDir.data(),
         nRays,
-        tgtGrid.verticesData(),
-        tgtGrid.nRows(),
-        tgtGrid.nCols(),
-        worldToGrid.data(),
-        tgtGrid.marksData(),
-        projection,
-        &results,
-        &hitCount,
-        maxDist
-    );
+        rayDir,
+        srcToTgt,
+        maxDist);
 
     // Convert hits to correspondences
-    correspondences.reserve(hitCount);
-    for (int h = 0; h < hitCount; h++)
-    {
-        const auto& hit = results[h];
+    std::vector<Correspondence> correspondences;
+    correspondences.reserve(hits.size());
 
+    for (const auto& hit : hits)
+    {
         Correspondence corr;
         corr.srcVertexIdx = srcIndices[hit.rayIndex];
         corr.srcPoint = srcGrid.getVertex(corr.srcVertexIdx);
-        corr.tgtPoint = Eigen::Map<const Eigen::Vector3f>(hit.point);
+        corr.tgtPoint = hit.point;
+        corr.tgtNormal = hit.normal;
         corr.tgtFacetId = hit.facetId;
-        corr.tgtNormal = tgtGrid.computeFacetNormalFromId(hit.facetId);
         corr.weight = 1.0f;
 
         correspondences.push_back(corr);
     }
-
-    // Cleanup
-    GridSearch_FreeResults(results);
-    GridSearch_DestroyProjection(projection);
 
     return correspondences;
 }

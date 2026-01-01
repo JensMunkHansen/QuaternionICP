@@ -14,6 +14,7 @@
 
 // Internal headers
 #include <ICP/Grid.h>
+#include <ICP/GridSearchBackend.h>
 #include <ICP/TriangulationMarks.h>
 
 namespace fs = std::filesystem;
@@ -420,4 +421,56 @@ Grid::AABB Grid::computeWorldAABB(const Eigen::Isometry3d& worldPose) const
     }
 
     return aabb;
+}
+
+ICP::IntersectionBackend& Grid::getBackend() const
+{
+    if (!backend_)
+    {
+        backend_ = ICP::createIntersectionBackend();
+        backend_->build(*this);
+    }
+    return *backend_;
+}
+
+void Grid::invalidateBackend()
+{
+    backend_.reset();
+}
+
+// Special member functions - must be defined here where IntersectionBackend is complete
+Grid::Grid() = default;
+Grid::~Grid() = default;
+
+Grid::Grid(Grid&&) noexcept = default;
+Grid& Grid::operator=(Grid&&) noexcept = default;
+
+Grid::Grid(const Grid& other)
+    : verticesAOS(other.verticesAOS)
+    , marks(other.marks)
+    , colorsRGB(other.colorsRGB)
+    , initialPose(other.initialPose)
+    , pose(other.pose)
+    , width(other.width)
+    , height(other.height)
+    , filename(other.filename)
+    , backend_(nullptr)  // Don't copy backend - will be lazily rebuilt
+{
+}
+
+Grid& Grid::operator=(const Grid& other)
+{
+    if (this != &other)
+    {
+        verticesAOS = other.verticesAOS;
+        marks = other.marks;
+        colorsRGB = other.colorsRGB;
+        initialPose = other.initialPose;
+        pose = other.pose;
+        width = other.width;
+        height = other.height;
+        filename = other.filename;
+        backend_.reset();  // Invalidate backend
+    }
+    return *this;
 }

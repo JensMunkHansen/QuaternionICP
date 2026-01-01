@@ -103,15 +103,15 @@ if(USE_MKL)
   # 2. MKL_ROOT from find_package(MKL CONFIG) in spsMKL.cmake
   # 3. Derive from MKL_CORE_LIB path (find_library fallback in spsMKL.cmake)
   if(DEFINED ENV{MKLROOT})
-    set(MKLROOT "$ENV{MKLROOT}")
+    set(SPS_MKLROOT "$ENV{MKLROOT}")
   elseif(MKL_ROOT)
     # Set by find_package(MKL CONFIG) - oneAPI CMake config
-    set(MKLROOT "${MKL_ROOT}")
+    set(SPS_MKLROOT "${MKL_ROOT}")
   elseif(MKL_CORE_LIB)
     # MKL_CORE_LIB is set by sps_find_mkl() via find_library
     # e.g., /opt/intel/oneapi/mkl/latest/lib/libmkl_core.so -> /opt/intel/oneapi/mkl/latest
     get_filename_component(_mkl_lib_dir "${MKL_CORE_LIB}" DIRECTORY)
-    get_filename_component(MKLROOT "${_mkl_lib_dir}" DIRECTORY)
+    get_filename_component(SPS_MKLROOT "${_mkl_lib_dir}" DIRECTORY)
   endif()
 
   # TODO END: Move to spsMKL
@@ -119,7 +119,7 @@ if(USE_MKL)
   # Disable other openmp libraries
   sps_ep_args_disable_openmp(EP_NO_OPENMP_ARGS)
   
-  message(STATUS "  MKLROOT: ${MKLROOT}")
+  message(STATUS "  SPS_MKLROOT: ${SPS_MKLROOT}")
 endif()
 
 
@@ -138,8 +138,8 @@ set(_base_install_rpath "${CMAKE_INSTALL_PREFIX}/lib")
 
 # Additional RPATH for MKL (if enabled). TODO: Move the MKL part to spsMKL (contain mkl and iomp5)
 set(EP_MKL_RPATH_ARGS "")
-if(USE_MKL AND MKLROOT)
-  set(_mkl_rpath_list "${_base_install_rpath}" "${MKLROOT}/lib")
+if(USE_MKL AND SPS_MKLROOT)
+  set(_mkl_rpath_list "${_base_install_rpath}" "${SPS_MKLROOT}/lib")
   if(IOMP5_LIB_DIR)
     list(APPEND _mkl_rpath_list "${IOMP5_LIB_DIR}")
   endif()
@@ -252,15 +252,16 @@ if(USE_SUITESPARSE)
         list(APPEND _mkl_libs "${MKL_SEQUENTIAL_LIB}")
       endif()
     else()
+      # NOT TESTED
       # Method 1: Construct from MKLROOT (oneAPI CMake config)
       # Use CMake's platform-specific library naming conventions
       if(WIN32)
-        set(_mkl_lib_dir "${MKLROOT}/lib/intel64")
+        set(_mkl_lib_dir "${SPS_MKLROOT}/lib/intel64")
         set(_mkl_prefix "")
         set(_mkl_suffix "${CMAKE_IMPORT_LIBRARY_SUFFIX}")  # .lib
         set(_iomp5_name "libiomp5md")
       else()
-        set(_mkl_lib_dir "${MKLROOT}/lib")
+        set(_mkl_lib_dir "${SPS_MKLROOT}/lib")
         set(_mkl_prefix "${CMAKE_SHARED_LIBRARY_PREFIX}")  # lib
         set(_mkl_suffix "${CMAKE_SHARED_LIBRARY_SUFFIX}")  # .so
         set(_iomp5_name "iomp5")
@@ -290,7 +291,7 @@ if(USE_SUITESPARSE)
       "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX}"
       "-DBLAS_LIBRARIES:STRING=${_mkl_libs_str}"
       "-DLAPACK_LIBRARIES:STRING=${_mkl_libs_str}"
-      "-DBLAS_INCLUDE_DIRS:STRING=${MKLROOT}/include"
+      "-DBLAS_INCLUDE_DIRS:STRING=${SPS_MKLROOT}/include"
     )
     message(STATUS "  SuiteSparse BLAS: ${_mkl_libs}")
     list(APPEND SUITESPARSE_CMAKE_ARGS ${EP_MKL_RPATH_ARGS})    
@@ -391,7 +392,7 @@ if(BUILD_CERES)
   if(USE_MKL)
     message(STATUS "  Ceres: MKL/LAPACK enabled (${MKL_BLA_VENDOR})")
     # Build CMAKE_LIBRARY_PATH - include iomp5 dir only if available
-    set(_ceres_lib_path "${MKLROOT}/lib")
+    set(_ceres_lib_path "${SPS_MKLROOT}/lib")
     if(IOMP5_LIB_DIR)
       set(_ceres_lib_path "${_ceres_lib_path};${IOMP5_LIB_DIR}")
     endif()
@@ -401,7 +402,7 @@ if(BUILD_CERES)
     )
     # Use CMAKE_CACHE_ARGS for paths with semicolons (list values)
     list(APPEND CERES_CMAKE_CACHE_ARGS
-      "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX};${MKLROOT}"
+      "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX};${SPS_MKLROOT}"
       "-DCMAKE_LIBRARY_PATH:STRING=${_ceres_lib_path}"
     )
     list(APPEND CERES_CMAKE_ARGS ${EP_MKL_RPATH_ARGS})    

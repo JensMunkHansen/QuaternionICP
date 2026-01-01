@@ -1,13 +1,12 @@
 cmake_minimum_required(VERSION 3.22...3.28)
 
-# Enable CUDA language if requested (must be before project())
-option(USE_CUDA "Enable CUDA support in Ceres" OFF)
-if(USE_CUDA)
-  project(Dependencies LANGUAGES C CXX CUDA)
-  message(STATUS "CUDA language enabled")
-else()
-  project(Dependencies LANGUAGES C CXX)
-endif()
+# TODO: Move MKL stuff into spsMKL.cmake
+
+# CUDA language must be enabled early
+project(Dependencies LANGUAGES C CXX CUDA)
+
+# Add CMake module path for functionalities
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../CMake")
 
 # Require MULTI_REGISTRATION_ROOT environment variable (for reference in messages)
 # CMAKE_INSTALL_PREFIX should be passed from command line (e.g., by dependencies.sh)
@@ -24,12 +23,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Add CMake module path for SBOM functionality
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../CMake")
 
 include(ExternalProject)
 include(CMakeDependentOption)
 include(spsSBOM)
+include(spsCUDA)
 
 # Control verbosity of ExternalProject builds
 option(DEPS_VERBOSE "Enable verbose output for dependency builds" OFF)
@@ -67,25 +65,12 @@ cmake_dependent_option(BUILD_GRIDSEARCH "Build GridSearch" OFF
   "BUILD_SIMDMATH" OFF)
 
 # Optional accelerator support (disabled by default for simple builds)
-# Note: USE_CUDA option is declared at top of file before project()
 option(USE_MKL "Enable Intel MKL (LAPACK) in Ceres" OFF)
 option(USE_TBB "Enable TBB threading in Ceres" OFF)
 option(USE_SUITESPARSE "Enable SuiteSparse in Ceres" OFF)
 
 # Build shared libraries (reduces binary size but requires .so at runtime)
 option(BUILD_SHARED_LIBS "Build shared libraries instead of static" OFF)
-
-# CUDA configuration
-# Auto-detect CUDA toolkit root from nvcc location, fallback to /usr/local/cuda
-find_program(NVCC_EXECUTABLE nvcc)
-if(NVCC_EXECUTABLE)
-  get_filename_component(_nvcc_dir "${NVCC_EXECUTABLE}" DIRECTORY)
-  get_filename_component(_cuda_root "${_nvcc_dir}" DIRECTORY)
-  set(CUDA_TOOLKIT_ROOT "${_cuda_root}" CACHE PATH "CUDA toolkit root")
-else()
-  set(CUDA_TOOLKIT_ROOT "/usr/local/cuda" CACHE PATH "CUDA toolkit root")
-endif()
-set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures" FORCE)
 
 #------------------------------------------------------------------------------
 # MKL detection (for Ceres LAPACK) - uses spsMKL for detection
@@ -96,12 +81,12 @@ if(USE_MKL)
   sps_find_mkl()
 
   if(NOT SPS_MKL_FOUND)
-    message(FATAL_ERROR "USE_MKL=ON but MKL not found. Set MKLROOT in .bashrc")
+    message(FATAL_ERROR "USE_MKL=ON but MKL not found. Set MKLROOT")
   endif()
 
   # Determine BLA_VENDOR based on whether threaded MKL is available
   # SPS_MKL_THREADED and IOMP5_LIB_DIR are set by spsMKL.cmake
-  # Use ILP64 (64-bit integers) to match main project
+  # Use ILP64 (64-bit integers)
   if(SPS_MKL_THREADED)
     set(MKL_BLA_VENDOR "Intel10_64ilp")  # Threaded ILP64
     message(STATUS "  BLA_VENDOR: ${MKL_BLA_VENDOR} (threaded, ILP64)")
@@ -243,7 +228,7 @@ endif()
 # (depends on Eigen3, optionally CUDA)
 #------------------------------------------------------------------------------
 if(USE_SUITESPARSE)
-  message(STATUS "Will build SuiteSparse ${SUITESPARSE_VERSION} (GPU: ${USE_CUDA})")
+  message(STATUS "Will build SuiteSparse ${SUITESPARSE_VERSION} (GPU: ${SPS_USE_CUDA})")
 
   set(SUITESPARSE_DEPENDS "")
   if(BUILD_EIGEN3)
@@ -321,17 +306,14 @@ if(USE_SUITESPARSE)
   endif()
 
   # Enable CUDA for CHOLMOD if requested
-  if(USE_CUDA)
+  list(APPEND SUITESPARSE_CMAKE_ARGS -DSUITESPARSE_USE_CUDA=${SPS_USE_CUDA})
+  if(SPS_USE_CUDA)
     list(APPEND SUITESPARSE_CMAKE_ARGS
-      -DSUITESPARSE_USE_CUDA=ON
       -DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}
       -DCMAKE_CUDA_COMPILER=${CUDA_TOOLKIT_ROOT}/bin/nvcc
     )
-  else()
-    list(APPEND SUITESPARSE_CMAKE_ARGS -DSUITESPARSE_USE_CUDA=OFF)
   endif()
   list(APPEND SUITESPARSE_CMAKE_ARGS
-    #${NO_OPENMP_CMAKE_ARGS}
     ${EP_NO_OPENMP_ARGS}    
     -DSUITESPARSE_USE_OPENMP=OFF
   )
@@ -396,7 +378,7 @@ if(BUILD_CERES)
   set(CERES_CMAKE_CACHE_ARGS "")
 
   # CUDA support
-  if(USE_CUDA)
+  if(SPS_USE_CUDA)
     message(STATUS "  Ceres: CUDA enabled (arch=${CMAKE_CUDA_ARCHITECTURES})")
     list(APPEND CERES_CMAKE_ARGS
       -DUSE_CUDA=ON
@@ -457,7 +439,7 @@ if(BUILD_CERES)
   # Patch Ceres to respect CMAKE_CUDA_ARCHITECTURES if already set
   # Ceres unconditionally overwrites it, which breaks custom arch settings
   set(CERES_PATCH_CMD "")
-  if(USE_CUDA)
+  if(SPS_USE_CUDA)
     set(CERES_PATCH_CMD
       git apply ${CMAKE_CURRENT_SOURCE_DIR}/patches/ceres-cuda-arch.patch
     )

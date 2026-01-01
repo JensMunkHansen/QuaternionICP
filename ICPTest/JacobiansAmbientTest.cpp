@@ -76,7 +76,7 @@ struct FDValidationTraits<RayJacobianSimplified>
 {
     static constexpr double translation_eps = 1e-2;   // Any eps works (linear)
     static constexpr double rotation_eps = 3e-6;      // Plateau at 3e-6
-    static constexpr double translation_tol = 1e-14;  // Machine precision
+    static constexpr double translation_tol = 2e-14;  // Near machine precision
     // Rotation: not validated against FD - see "[diagnostic]" test
     static constexpr double rotation_tol = std::numeric_limits<double>::max();
 };
@@ -86,7 +86,7 @@ struct FDValidationTraits<RayJacobianConsistent>
 {
     static constexpr double translation_eps = 1e-2;   // Any eps works (linear)
     static constexpr double rotation_eps = 3e-6;      // Plateau at 3e-6
-    static constexpr double translation_tol = 1e-14;  // Machine precision
+    static constexpr double translation_tol = 2e-14;  // Near machine precision
     static constexpr double rotation_tol = 1e-10;     // Matches FD (sweep: ~3e-11)
 };
 

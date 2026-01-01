@@ -49,7 +49,7 @@ runs:
       shell: bash
       run: |
         COMBINED=""
-        for f in NativeDeps/CMakeLists.txt versions.txt; do
+        for f in NativeDeps/CMakeLists.txt versions.txt dependencies.sh; do
           [ -f "$f" ] && COMBINED+=$(sha256sum "$f" | cut -d" " -f1)
         done
         if [ -n "$COMBINED" ]; then
@@ -66,9 +66,9 @@ runs:
         path: |
           ${{ github.workspace }}/Linux/gcc/install
           ${{ github.workspace }}/Linux/gcc/build
-        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v2
+        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v3
         restore-keys: |
-          deps-gcc-${{ runner.os }}-main-${{ steps.deps-checksum.outputs.checksum }}-v2
+          deps-gcc-${{ runner.os }}-main-${{ steps.deps-checksum.outputs.checksum }}-v3
 
     - name: Check if dependencies were restored
       id: check-deps
@@ -96,7 +96,7 @@ runs:
         ./dependencies.sh --ci --compiler=gcc \
           -DBUILD_CERES=OFF \
           -DBUILD_ABSEIL=OFF \
-          -DBUILD_ARGS=OFF \
+          -DBUILD_ARGS=ON \
           -DBUILD_CATCH2=ON \
           -DBUILD_EIGEN3=ON \
           -DBUILD_SOPHUS=ON \
@@ -112,7 +112,7 @@ runs:
         path: |
           ${{ github.workspace }}/Linux/gcc/install
           ${{ github.workspace }}/Linux/gcc/build
-        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v2
+        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v3
 
     - name: Verify dependencies
       shell: bash

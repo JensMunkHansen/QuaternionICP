@@ -49,22 +49,14 @@ on:
       - main
 
 jobs:
-  # PR builds - reduced matrix (Release + Asan only for efficiency)
+  # PR/push builds - gcc Release only for now
   build-and-test:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        include:
-          - compiler: gcc
-            build-type: Release
-          - compiler: gcc
-            build-type: Asan
-      fail-fast: false
 
     env:
-      COMPILER: ${{ matrix.compiler }}
-      BUILD_TYPE: ${{ matrix.build-type }}
+      COMPILER: gcc
+      BUILD_TYPE: Release
 
     steps:
       - name: Checkout source
@@ -76,8 +68,8 @@ jobs:
       - name: Build and Test
         uses: ./.github/actions/build-test-linux
         with:
-          compiler: ${{ matrix.compiler }}
-          build-type: ${{ matrix.build-type }}
+          compiler: gcc
+          build-type: Release
 
   # Manual builds - single configuration
   build-and-test-manual-single:

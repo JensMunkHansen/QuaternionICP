@@ -2,8 +2,14 @@ cmake_minimum_required(VERSION 3.22...3.28)
 
 # TODO: Move MKL stuff into spsMKL.cmake
 
-# CUDA language must be enabled early
-project(Dependencies LANGUAGES C CXX CUDA)
+# CUDA is optional - only enable if available
+option(USE_CUDA "Enable CUDA support" OFF)
+
+if(USE_CUDA)
+  project(Dependencies LANGUAGES C CXX CUDA)
+else()
+  project(Dependencies LANGUAGES C CXX)
+endif()
 
 # Add CMake module path for functionalities
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../CMake")

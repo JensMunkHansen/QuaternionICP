@@ -55,6 +55,10 @@ on:
   #   branches:
   #     - main
 
+permissions:
+  contents: write
+  pages: write
+
 jobs:
   # Automatic builds on push/PR (currently disabled via triggers above)
   build-and-test:

@@ -36,7 +36,7 @@ runs:
       run: |
         echo "::group::Install system dependencies"
         sudo apt-get update
-        sudo apt-get install -y ninja-build cmake g++ clang libembree-dev libceres-dev
+        sudo apt-get install -y ninja-build cmake g++ clang libembree-dev libunwind-dev libceres-dev
         echo "::endgroup::"
 
     - name: Set MULTI_REGISTRATION_ROOT

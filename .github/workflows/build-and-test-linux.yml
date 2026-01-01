@@ -54,7 +54,7 @@ jobs:
   # Manual builds - single configuration
   build-and-test-manual-single:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.build-mode == 'single'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     env:
       COMPILER: ${{ github.event.inputs.compiler }}
@@ -76,7 +76,7 @@ jobs:
   # Manual builds - all configurations (gcc only)
   build-and-test-manual-all:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.build-mode == 'all'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         compiler: [gcc]

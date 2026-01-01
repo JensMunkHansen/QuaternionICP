@@ -1,24 +1,15 @@
 #pragma once
 
 // Internal headers
-#include <ICP/Config.h>
 #include <ICP/Grid.h>
 #include <ICP/IntersectionBackend.h>
 
-// GridSearch headers (conditionally included)
-#if ICP_USE_GRIDSEARCH
+// GridSearch headers
 #include <GridSearch/GridSearchC.h>
-#endif
-
-// Embree backend (conditionally included)
-#if ICP_USE_EMBREE
-#include <ICP/EmbreeBackend.h>
-#endif
 
 namespace ICP
 {
 
-#if ICP_USE_GRIDSEARCH
 /**
  * GridSearch-based intersection backend.
  *
@@ -126,19 +117,5 @@ private:
     int nRows_ = 0;
     int nCols_ = 0;
 };
-#endif  // ICP_USE_GRIDSEARCH
-
-// Factory implementation - selects backend based on compile-time config
-#if ICP_USE_EMBREE
-inline std::unique_ptr<IntersectionBackend> createIntersectionBackend()
-{
-    return std::make_unique<EmbreeBackend>();
-}
-#elif ICP_USE_GRIDSEARCH
-inline std::unique_ptr<IntersectionBackend> createIntersectionBackend()
-{
-    return std::make_unique<GridSearchBackend>();
-}
-#endif
 
 }  // namespace ICP

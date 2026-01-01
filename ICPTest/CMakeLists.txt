@@ -16,11 +16,10 @@ add_icp_test(ParameterPropagationTest)
 
 # Embree-specific tests
 if(USE_EMBREE)
-    add_executable(EmbreeTest EmbreeTest.cpp)
-    target_link_libraries(EmbreeTest PRIVATE ICP ${EMBREE_LIBRARIES} Catch2::Catch2WithMain)
-    catch_discover_tests(EmbreeTest)
+    add_icp_test(EmbreeTest)
+endif()
 
-    add_executable(BackendComparisonTest BackendComparisonTest.cpp)
-    target_link_libraries(BackendComparisonTest PRIVATE ICP ${EMBREE_LIBRARIES} Catch2::Catch2WithMain)
-    catch_discover_tests(BackendComparisonTest)
+# Backend comparison requires both backends
+if(USE_EMBREE AND USE_GRIDSEARCH)
+    add_icp_test(BackendComparisonTest)
 endif()

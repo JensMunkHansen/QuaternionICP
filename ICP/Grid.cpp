@@ -9,12 +9,9 @@
 #define TINYEXR_IMPLEMENTATION
 #include <tinyexr.h>
 
-// GridSearch headers
-#include <GridSearch/GridSearchC.h>
-
 // Internal headers
 #include <ICP/Grid.h>
-#include <ICP/GridSearchBackend.h>
+#include <ICP/IntersectionBackend.h>
 #include <ICP/TriangulationMarks.h>
 
 namespace fs = std::filesystem;

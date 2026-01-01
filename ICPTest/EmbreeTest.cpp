@@ -25,7 +25,9 @@
 #include <ICP/EmbreeBackend.h>
 #include <ICP/Grid.h>
 #include <ICP/GridFactory.h>
+#if ICP_USE_GRIDSEARCH
 #include <ICP/GridSearchBackend.h>
+#endif
 
 using Catch::Matchers::WithinAbs;
 
@@ -489,6 +491,7 @@ TEST_CASE("Rays from grid vertices - self intersection scenario", "[embree]")
     rtcReleaseDevice(device);
 }
 
+#if ICP_USE_GRIDSEARCH
 TEST_CASE("Compare backends with Z translation", "[embree][comparison]")
 {
     Grid grid = ICP::createTwoHemispheresGrid();
@@ -927,6 +930,7 @@ TEST_CASE("Systematic bidirectional backend comparison", "[embree][comparison]")
         CHECK(embreeHits.size() == gsHits.size());
     }
 }
+#endif  // ICP_USE_GRIDSEARCH
 
 TEST_CASE("Ray with limited tfar", "[embree]")
 {

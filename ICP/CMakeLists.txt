@@ -68,11 +68,12 @@ if(USE_EMBREE)
 endif()
 
 add_library(${TARGET_NAME} STATIC
+    BackendFactory.cpp
+    CommonOptions.cpp
     Grid.cpp
     GridFactory.cpp
     GridLoader.cpp
     MultiViewICP.cpp
-    CommonOptions.cpp
     ${ICP_HEADERS}
 )
 

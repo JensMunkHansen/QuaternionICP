@@ -1,0 +1,129 @@
+name: Build and Test Linux with Cached Dependencies
+
+concurrency:
+  group: ci-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      build-mode:
+        description: "Select build mode"
+        required: true
+        default: single
+        type: choice
+        options:
+          - single
+          - all
+      build-type:
+        description: "Select build type (only used for single mode)"
+        required: false
+        default: Release
+        type: choice
+        options:
+          - Debug
+          - Release
+          - Asan
+      compiler:
+        description: "Select compiler (only used for single mode)"
+        required: false
+        default: gcc
+        type: choice
+        options:
+          - gcc
+          - clang
+      force-cache-refresh:
+        description: "Force rebuild dependencies (clear cache)"
+        required: false
+        default: false
+        type: boolean
+  pull_request:
+    types:
+     - opened
+     - reopened
+     - synchronize
+    branches:
+     - main
+  push:
+    branches:
+      - main
+
+jobs:
+  # PR builds - reduced matrix (Release + Asan only for efficiency)
+  build-and-test:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - compiler: gcc
+            build-type: Release
+          - compiler: gcc
+            build-type: Asan
+      fail-fast: false
+
+    env:
+      COMPILER: ${{ matrix.compiler }}
+      BUILD_TYPE: ${{ matrix.build-type }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build and Test
+        uses: ./.github/actions/build-test-linux
+        with:
+          compiler: ${{ matrix.compiler }}
+          build-type: ${{ matrix.build-type }}
+
+  # Manual builds - single configuration
+  build-and-test-manual-single:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.build-mode == 'single'
+    runs-on: ubuntu-22.04
+
+    env:
+      COMPILER: ${{ github.event.inputs.compiler }}
+      BUILD_TYPE: ${{ github.event.inputs.build-type }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build and Test
+        uses: ./.github/actions/build-test-linux
+        with:
+          compiler: ${{ github.event.inputs.compiler }}
+          build-type: ${{ github.event.inputs.build-type }}
+
+  # Manual builds - all configurations (gcc only)
+  build-and-test-manual-all:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.build-mode == 'all'
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        compiler: [gcc]
+        build-type: [Debug, Release]
+      fail-fast: false
+
+    env:
+      COMPILER: ${{ matrix.compiler }}
+      BUILD_TYPE: ${{ matrix.build-type }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build and Test
+        uses: ./.github/actions/build-test-linux
+        with:
+          compiler: ${{ matrix.compiler }}
+          build-type: ${{ matrix.build-type }}

@@ -46,6 +46,14 @@
             }
         },
         {
+            "name": "linux-gcc-ci",
+            "inherits": "linux-gcc-nomkl",
+            "cacheVariables": {
+                "USE_GRIDSEARCH": "OFF",
+                "USE_EMBREE": "ON"
+            }
+        },
+        {
             "name": "linux-clang",
             "inherits": "default",
             "condition": {
@@ -58,6 +66,15 @@
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++",
                 "CMAKE_PREFIX_PATH": "$env{MULTI_REGISTRATION_ROOT}/${hostSystemName}/clang/install"
+            }
+        },
+        {
+            "name": "linux-clang-ci",
+            "inherits": "linux-clang",
+            "cacheVariables": {
+                "USE_MKL": "OFF",
+                "USE_GRIDSEARCH": "OFF",
+                "USE_EMBREE": "ON"
             }
         },
         {
@@ -135,6 +152,22 @@
             "name": "core-test-clang",
             "description": "Enable output on failure",
             "configurePreset": "linux-clang",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "core-test-gcc-ci",
+            "description": "CI tests for GCC",
+            "configurePreset": "linux-gcc-ci",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "core-test-clang-ci",
+            "description": "CI tests for Clang",
+            "configurePreset": "linux-clang-ci",
             "output": {
                 "outputOnFailure": true
             }

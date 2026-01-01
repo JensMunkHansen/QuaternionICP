@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Default compiler
 COMPILER_CHOICE="gcc"
 KEEP_BUILD=true
+CI_MODE=false
 
 # Help function
 show_help() {
@@ -20,6 +21,7 @@ Options:
   --help, -h            Show this help message
   --compiler=<gcc|clang> Select compiler (default: gcc)
   --delete-build        Delete build directory after install (default: keep)
+  --ci                  CI mode: disable SIMDMath and GridSearch (no SSH keys needed)
 
 Optional CMake flags (pass directly):
   -DUSE_MKL=ON          Enable Intel MKL for LAPACK/BLAS
@@ -91,12 +93,21 @@ while [[ $# -gt 0 ]]; do
             KEEP_BUILD=false
             shift
             ;;
+        --ci)
+            CI_MODE=true
+            shift
+            ;;
         *)
             CMAKE_ARGS+=("$1")
             shift
             ;;
     esac
 done
+
+# In CI mode, disable private repo dependencies
+if [ "$CI_MODE" = "true" ]; then
+    CMAKE_ARGS+=("-DBUILD_SIMDMATH=OFF" "-DBUILD_GRIDSEARCH=OFF")
+fi
 
 # Set compiler based on choice
 case "$COMPILER_CHOICE" in

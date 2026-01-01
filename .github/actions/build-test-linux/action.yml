@@ -1,0 +1,211 @@
+name: Build and Test Linux
+description: Build dependencies, configure, build, and test QuaternionICP on Linux
+
+inputs:
+  compiler:
+    description: 'Compiler to use (gcc or clang)'
+    required: true
+  build-type:
+    description: 'Build type (Debug, Release, Asan)'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        build_type="${{ inputs.build-type }}"
+        compiler="${{ inputs.compiler }}"
+
+        if [ "$build_type" != "Debug" ] && [ "$build_type" != "Release" ] && [ "$build_type" != "Asan" ]; then
+          echo "Invalid build type: $build_type"
+          exit 1
+        fi
+
+        if [ "$compiler" != "gcc" ] && [ "$compiler" != "clang" ]; then
+          echo "Invalid compiler: $compiler"
+          exit 1
+        fi
+
+        echo "BUILD_TYPE=$build_type" >> $GITHUB_ENV
+        echo "COMPILER=$compiler" >> $GITHUB_ENV
+
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        echo "::group::Install system dependencies"
+        sudo apt-get update
+        sudo apt-get install -y ninja-build cmake g++ clang libembree-dev
+        echo "::endgroup::"
+
+    - name: Set MULTI_REGISTRATION_ROOT
+      shell: bash
+      run: |
+        echo "MULTI_REGISTRATION_ROOT=${{ github.workspace }}" >> $GITHUB_ENV
+
+    - name: Calculate NativeDeps checksum
+      id: deps-checksum
+      shell: bash
+      run: |
+        COMBINED=""
+        for f in NativeDeps/CMakeLists.txt versions.txt; do
+          [ -f "$f" ] && COMBINED+=$(sha256sum "$f" | cut -d" " -f1)
+        done
+        if [ -n "$COMBINED" ]; then
+          CHECKSUM=$(echo -n "$COMBINED" | sha256sum | cut -d" " -f1)
+        else
+          CHECKSUM="unknown"
+        fi
+        echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+
+    - name: Restore dependencies cache
+      id: cache-deps
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ github.workspace }}/Linux/gcc/install
+          ${{ github.workspace }}/Linux/gcc/build
+        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v1
+        restore-keys: |
+          deps-gcc-${{ runner.os }}-main-${{ steps.deps-checksum.outputs.checksum }}-v1
+
+    - name: Check if dependencies were restored
+      id: check-deps
+      shell: bash
+      run: |
+        gcc_install="${{ github.workspace }}/Linux/gcc/install/lib/cmake/Catch2/Catch2Config.cmake"
+
+        if [[ -f "$gcc_install" ]]; then
+          echo "Dependencies restored from cache"
+          echo "need-build=false" >> $GITHUB_OUTPUT
+        else
+          echo "Dependencies not found - need to build"
+          echo "need-build=true" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build dependencies
+      if: steps.check-deps.outputs.need-build == 'true'
+      shell: bash
+      run: |
+        echo "::group::Build dependencies"
+        echo "MULTI_REGISTRATION_ROOT: $MULTI_REGISTRATION_ROOT"
+        chmod +x ./dependencies.sh
+        ./dependencies.sh --ci --compiler=gcc
+        echo "::endgroup::"
+
+    - name: Save dependencies to cache
+      if: always() && steps.check-deps.outputs.need-build == 'true'
+      continue-on-error: true
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ github.workspace }}/Linux/gcc/install
+          ${{ github.workspace }}/Linux/gcc/build
+        key: deps-gcc-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ steps.deps-checksum.outputs.checksum }}-v1
+
+    - name: Verify dependencies
+      shell: bash
+      run: |
+        echo "::group::Verify dependencies"
+        install_dir="$MULTI_REGISTRATION_ROOT/Linux/${{ env.COMPILER }}/install"
+
+        if [[ -d "$install_dir" ]]; then
+          echo "Dependencies found at: $install_dir"
+
+          if [[ -f "$install_dir/lib/cmake/Catch2/Catch2Config.cmake" ]]; then
+            echo "Catch2 found"
+          else
+            echo "ERROR: Catch2 not found"
+            exit 1
+          fi
+
+          if [[ -f "$install_dir/share/eigen3/cmake/Eigen3Config.cmake" ]]; then
+            echo "Eigen3 found"
+          else
+            echo "ERROR: Eigen3 not found"
+            exit 1
+          fi
+
+          if [[ -f "$install_dir/lib/cmake/Ceres/CeresConfig.cmake" ]]; then
+            echo "Ceres found"
+          else
+            echo "ERROR: Ceres not found"
+            exit 1
+          fi
+
+          echo "CMAKE_PREFIX_PATH=$install_dir" >> $GITHUB_ENV
+        else
+          echo "ERROR: Dependencies not found at: $install_dir"
+          exit 1
+        fi
+        echo "::endgroup::"
+
+    - name: Set build variables
+      id: build-vars
+      shell: bash
+      run: |
+        compiler="${{ env.COMPILER }}"
+
+        if [ "$compiler" = "gcc" ]; then
+          preset="linux-gcc-ci"
+          build_dir="build/linux-gcc-ci"
+          test_preset="core-test-gcc-ci"
+        else
+          preset="linux-clang-ci"
+          build_dir="build/linux-clang-ci"
+          test_preset="core-test-clang-ci"
+        fi
+
+        echo "Preset: $preset"
+        echo "Build dir: $build_dir"
+        echo "Test preset: $test_preset"
+
+        echo "PRESET=$preset" >> $GITHUB_ENV
+        echo "BUILD_DIR=$build_dir" >> $GITHUB_ENV
+        echo "TEST_PRESET=$test_preset" >> $GITHUB_ENV
+
+    - name: Configure project
+      shell: bash
+      run: |
+        echo "::group::Configure project"
+        cmake --preset $PRESET -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH"
+        echo "::endgroup::"
+
+    - name: Build project
+      shell: bash
+      run: |
+        echo "::group::Build project"
+        cmake --build $BUILD_DIR --config $BUILD_TYPE --parallel
+        echo "::endgroup::"
+
+    - name: Run tests
+      shell: bash
+      run: |
+        echo "::group::Run tests"
+        ctest --preset $TEST_PRESET --test-dir $BUILD_DIR -C $BUILD_TYPE
+        echo "::endgroup::"
+
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs-${{ env.COMPILER }}-${{ env.BUILD_TYPE }}-${{ github.run_number }}
+        path: |
+          build/**/Testing/Temporary/LastTest.log
+          build/**/Testing/Temporary/LastTestsFailed.log
+          build/**/Testing/Temporary/CTestCostData.txt
+        retention-days: 30
+        if-no-files-found: warn
+
+    - name: Upload dependency build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: deps-build-logs-${{ env.COMPILER }}-${{ github.run_number }}
+        path: |
+          ${{ github.workspace }}/Linux/gcc/build/**/CMakeCache.txt
+          ${{ github.workspace }}/Linux/gcc/build/**/CMakeFiles/CMakeError.log
+          ${{ github.workspace }}/Linux/gcc/build/**/CMakeFiles/CMakeOutput.log
+        retention-days: 30
+        if-no-files-found: warn

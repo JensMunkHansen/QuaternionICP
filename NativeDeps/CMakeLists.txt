@@ -84,6 +84,8 @@ if(USE_MKL)
     message(FATAL_ERROR "USE_MKL=ON but MKL not found. Set MKLROOT")
   endif()
 
+  # TODO BEGIN: Move to spsMKL
+  
   # Determine BLA_VENDOR based on whether threaded MKL is available
   # SPS_MKL_THREADED and IOMP5_LIB_DIR are set by spsMKL.cmake
   # Use ILP64 (64-bit integers)
@@ -112,6 +114,8 @@ if(USE_MKL)
     get_filename_component(MKLROOT "${_mkl_lib_dir}" DIRECTORY)
   endif()
 
+  # TODO END: Move to spsMKL
+  
   # Disable other openmp libraries
   sps_ep_args_disable_openmp(EP_NO_OPENMP_ARGS)
   
@@ -132,7 +136,7 @@ endif()
 
 set(_base_install_rpath "${CMAKE_INSTALL_PREFIX}/lib")
 
-# Additional RPATH for MKL (if enabled)
+# Additional RPATH for MKL (if enabled). TODO: Move the MKL part to spsMKL (contain mkl and iomp5)
 set(EP_MKL_RPATH_ARGS "")
 if(USE_MKL AND MKLROOT)
   set(_mkl_rpath_list "${_base_install_rpath}" "${MKLROOT}/lib")
@@ -153,14 +157,6 @@ set(COMMON_CMAKE_ARGS
   -DCMAKE_CXX_STANDARD=17
   -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
 )
-
-set(NO_OPENMP_CMAKE_ARGS "")
-if(USE_MKL AND SPS_MKL_THREADED)
-  # Critical: prevent any ExternalProject from finding/linking GCC OpenMP (libgomp)
-  list(APPEND NO_OPENMP_CMAKE_ARGS
-    -DCMAKE_DISABLE_FIND_PACKAGE_OpenMP=TRUE
-  )
-endif()
 
 if (BUILD_CATCH2)
   message("Catch2 will be build")

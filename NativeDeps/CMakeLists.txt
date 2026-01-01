@@ -90,6 +90,7 @@ set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures" FORCE)
 #------------------------------------------------------------------------------
 # MKL detection (for Ceres LAPACK) - uses spsMKL for detection
 #------------------------------------------------------------------------------
+set(EP_NO_OPENMP_ARGS "")
 if(USE_MKL)
   include(spsMKL)
   sps_find_mkl()
@@ -149,7 +150,7 @@ set(_base_install_rpath "${CMAKE_INSTALL_PREFIX}/lib")
 # Additional RPATH for MKL (if enabled)
 set(EP_MKL_RPATH_ARGS "")
 if(USE_MKL AND MKLROOT)
-  set(_mkl_rpath_list "${_base_install_rpath};${MKLROOT}/lib")
+  set(_mkl_rpath_list "${_base_install_rpath}" "${MKLROOT}/lib")
   if(IOMP5_LIB_DIR)
     list(APPEND _mkl_rpath_list "${IOMP5_LIB_DIR}")
   endif()
@@ -162,7 +163,7 @@ endif()
 set(COMMON_CMAKE_ARGS
   -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
   -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
-  -DCMAKE_INSTALL_RPATH:STRING=${_base_install_rpath_str}
+  -DCMAKE_INSTALL_RPATH:STRING=${_base_install_rpath}
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON
   -DCMAKE_CXX_STANDARD=17
   -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
@@ -251,7 +252,7 @@ if(USE_SUITESPARSE)
 
   set(SUITESPARSE_CMAKE_ARGS
     ${COMMON_CMAKE_ARGS}
-    -DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config$<SEMICOLON>amd$<SEMICOLON>colamd$<SEMICOLON>camd$<SEMICOLON>ccolamd$<SEMICOLON>cholmod$<SEMICOLON>spqr
+    "-DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config;amd;colamd;camd;ccolamd;cholmod;spqr"    
     -DSUITESPARSE_USE_FORTRAN=OFF
     -DBUILD_TESTING=OFF
   )

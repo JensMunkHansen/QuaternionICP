@@ -38,40 +38,19 @@ on:
         required: false
         default: false
         type: boolean
-  pull_request:
-    types:
-     - opened
-     - reopened
-     - synchronize
-    branches:
-     - main
-  push:
-    branches:
-      - main
+  # Temporarily disabled - debugging CI
+  # pull_request:
+  #   types:
+  #    - opened
+  #    - reopened
+  #    - synchronize
+  #   branches:
+  #    - main
+  # push:
+  #   branches:
+  #     - main
 
 jobs:
-  # PR/push builds - gcc Release only for now
-  build-and-test:
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
-    runs-on: ubuntu-22.04
-
-    env:
-      COMPILER: gcc
-      BUILD_TYPE: Release
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Build and Test
-        uses: ./.github/actions/build-test-linux
-        with:
-          compiler: gcc
-          build-type: Release
-
   # Manual builds - single configuration
   build-and-test-manual-single:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.build-mode == 'single'

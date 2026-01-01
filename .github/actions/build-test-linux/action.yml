@@ -36,7 +36,7 @@ runs:
       run: |
         echo "::group::Install system dependencies"
         sudo apt-get update
-        sudo apt-get install -y ninja-build cmake g++ clang libembree-dev
+        sudo apt-get install -y ninja-build cmake g++ clang libembree-dev libceres-dev
         echo "::endgroup::"
 
     - name: Set MULTI_REGISTRATION_ROOT
@@ -91,7 +91,16 @@ runs:
         echo "::group::Build dependencies"
         echo "MULTI_REGISTRATION_ROOT: $MULTI_REGISTRATION_ROOT"
         chmod +x ./dependencies.sh
-        ./dependencies.sh --ci --compiler=gcc
+        # Minimal deps for CI - using system libceres-dev (includes Eigen)
+        ./dependencies.sh --ci --compiler=gcc \
+          -DBUILD_CERES=OFF \
+          -DBUILD_ABSEIL=OFF \
+          -DBUILD_SOPHUS=OFF \
+          -DBUILD_ARGS=OFF \
+          -DBUILD_MINIZ=OFF \
+          -DBUILD_TINYEXR=OFF \
+          -DBUILD_CATCH2=ON \
+          -DBUILD_EIGEN3=ON
         echo "::endgroup::"
 
     - name: Save dependencies to cache
@@ -127,12 +136,7 @@ runs:
             exit 1
           fi
 
-          if [[ -f "$install_dir/lib/cmake/Ceres/CeresConfig.cmake" ]]; then
-            echo "Ceres found"
-          else
-            echo "ERROR: Ceres not found"
-            exit 1
-          fi
+          # Ceres comes from system libceres-dev, not our build
 
           echo "CMAKE_PREFIX_PATH=$install_dir" >> $GITHUB_ENV
         else

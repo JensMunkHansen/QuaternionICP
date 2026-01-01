@@ -91,16 +91,17 @@ runs:
         echo "::group::Build dependencies"
         echo "MULTI_REGISTRATION_ROOT: $MULTI_REGISTRATION_ROOT"
         chmod +x ./dependencies.sh
-        # Minimal deps for CI - using system libceres-dev (includes Eigen)
+        # Minimal deps for CI - using system libceres-dev and libembree-dev
+        # Build only what's not in apt: Catch2, Sophus, tinyexr (needs miniz)
         ./dependencies.sh --ci --compiler=gcc \
           -DBUILD_CERES=OFF \
           -DBUILD_ABSEIL=OFF \
-          -DBUILD_SOPHUS=OFF \
           -DBUILD_ARGS=OFF \
-          -DBUILD_MINIZ=OFF \
-          -DBUILD_TINYEXR=OFF \
           -DBUILD_CATCH2=ON \
-          -DBUILD_EIGEN3=ON
+          -DBUILD_EIGEN3=ON \
+          -DBUILD_SOPHUS=ON \
+          -DBUILD_MINIZ=ON \
+          -DBUILD_TINYEXR=ON
         echo "::endgroup::"
 
     - name: Save dependencies to cache

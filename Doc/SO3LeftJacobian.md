@@ -57,7 +57,7 @@ Then:
 Using the scalar coefficients:
 \f[
   B = \frac{1 - \cos\theta}{\theta^2}, \qquad
-  C = \frac{\theta - \sin\theta}{\theta^3} = \frac{1 - \sinc(\theta)}{\theta^2}
+  C = \frac{\theta - \sin\theta}{\theta^3}
 \f]
 
 we write:

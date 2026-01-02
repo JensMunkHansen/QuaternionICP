@@ -13,6 +13,7 @@ if(NOT USE_GRIDSEARCH AND NOT USE_EMBREE)
 endif()
 
 if(USE_GRIDSEARCH)
+    find_package(SIMDMath REQUIRED)  # GridSearch dependency (workaround for missing find_dependency)
     find_package(GridSearch REQUIRED)
 endif()
 

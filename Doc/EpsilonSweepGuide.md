@@ -24,7 +24,7 @@ The central difference approximation:
 
 is affected by two competing error sources.
 
-@subsection esg_truncation Truncation Error (large \f$\varepsilon\f$)
+@subsection esg_truncation Truncation Error (Large Epsilon)
 
 For large \f$\varepsilon\f$, higher-order Taylor terms dominate:
 \f[
@@ -36,7 +36,7 @@ Central differences cancel the first-order error, leaving:
   \text{Truncation error} = O(\varepsilon^2)
 \f]
 
-@subsection esg_roundoff Roundoff Error (small \f$\varepsilon\f$)
+@subsection esg_roundoff Roundoff Error (Small Epsilon)
 
 For very small \f$\varepsilon\f$:
 - \f$r(x + \varepsilon)\f$ and \f$r(x - \varepsilon)\f$ become numerically indistinguishable
@@ -143,7 +143,7 @@ rotated by \f$R\f$ to obtain the world-frame change.
 
 Let \f$r(T)\f$ be a scalar residual.
 
-@subsection esg_fd_translation Translation Components \f$v_x, v_y, v_z\f$
+@subsection esg_fd_translation Translation Components
 
 For \f$k \in \{0, 1, 2\}\f$:
 \f[
@@ -155,7 +155,7 @@ For \f$k \in \{0, 1, 2\}\f$:
   \frac{r(R_+, \mathbf{t}_+) - r(R_-, \mathbf{t}_-)}{2\varepsilon}
 \f]
 
-@subsection esg_fd_rotation Rotation Components \f$\omega_x, \omega_y, \omega_z\f$
+@subsection esg_fd_rotation Rotation Components
 
 For \f$k \in \{0, 1, 2\}\f$:
 \f[
@@ -280,7 +280,7 @@ For the backward case (\f$\mathbf{d} = R^\top\mathbf{d}_0\f$):
 
 @section esg_takeaway Key Takeaways
 
-- **Never trust a single \f$\varepsilon\f$; trust the plateau**
-- **For right-multiplication, translation FD must use \f$\mathbf{t} + R(\varepsilon\mathbf{e}_k)\f$**
-- **Translation is linear (no plateau); rotation is nonlinear (plateau at \f$10^{-6}\f$ to \f$10^{-8}\f$)**
-- **The quotient rule is essential for rotation Jacobians of ratio residuals**
+- Never trust a single \f$\varepsilon\f$; trust the plateau
+- For right-multiplication, translation FD must use \f$\mathbf{t} + R(\varepsilon\mathbf{e}_k)\f$
+- Translation is linear (no plateau); rotation is nonlinear (plateau at \f$10^{-6}\f$ to \f$10^{-8}\f$)
+- The quotient rule is essential for rotation Jacobians of ratio residuals

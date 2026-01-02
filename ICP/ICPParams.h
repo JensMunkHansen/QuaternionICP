@@ -1,15 +1,30 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) Jens Munk Hansen
 
-#pragma once
 /**
- * ICP parameters and configuration structures.
+ * @file ICPParams.h
+ * @brief ICP algorithm parameters and configuration structures.
+ * @author Jens Munk Hansen
+ * @date 2024-2025
  *
- * Three-level hierarchy:
- *   ICPSessionParams - session-level (backend, grid poses, first pose fixed)
- *   ICPOuterParams   - outer loop (correspondences, subsampling, weighting)
- *   ICPInnerParams   - inner loop (solver type, iterations, thresholds)
+ * @details This header defines a three-level parameter hierarchy for
+ * configuring the Iterative Closest Point (ICP) algorithm:
+ *
+ * - **SessionParams**: Session-level configuration including backend selection
+ *   (hand-rolled vs Ceres), initial pose handling, and CUDA options.
+ *
+ * - **OuterParams**: Outer loop parameters controlling correspondence updates,
+ *   subsampling rates, ray direction, and geometry-based weighting.
+ *
+ * - **InnerParams**: Inner loop solver parameters including solver type
+ *   (Gauss-Newton or Levenberg-Marquardt), iteration limits, convergence
+ *   thresholds, and Jacobian computation policy.
+ *
+ * The Defaults namespace provides pre-configured parameter sets for common
+ * use cases: SinglePose, TwoPose, MultiView, and MultiViewCuda.
  */
+
+#pragma once
 
 // Standard C++ headers
 #include <cmath>
@@ -28,71 +43,89 @@ namespace ICP
 // ============================================================================
 
 /**
- * Solver backend selection.
+ * @brief Solver backend selection.
+ *
+ * Determines which optimization backend is used for the ICP inner loop.
  */
 enum class SolverBackend
 {
-    HandRolled,  // Hand-rolled implementation (GN or LM)
-    Ceres        // Ceres-based implementation
+    HandRolled,  ///< Hand-rolled implementation (Gauss-Newton or Levenberg-Marquardt)
+    Ceres        ///< Ceres Solver-based implementation with automatic differentiation
 };
 
 /**
- * Inner solver type (GN vs LM).
+ * @brief Inner solver type selection.
+ *
+ * Selects between Gauss-Newton (no damping) and Levenberg-Marquardt
+ * (adaptive damping) for the nonlinear least-squares optimization.
  */
 enum class SolverType
 {
-    GaussNewton,
-    LevenbergMarquardt
+    GaussNewton,        ///< Gauss-Newton solver (faster but may diverge)
+    LevenbergMarquardt  ///< Levenberg-Marquardt solver (more robust with damping)
 };
 
 /**
- * Jacobian computation policy for ray-projection residuals.
+ * @brief Jacobian computation policy for ray-projection residuals.
+ *
+ * Controls whether the Jacobian includes the derivative of the
+ * denominator in the ray-plane intersection formula.
  */
 enum class JacobianPolicy
 {
-    Simplified,  // Ignore db/dq term (faster, approximate)
-    Consistent   // Full quotient rule including db/dq (exact)
+    Simplified,  ///< Ignore db/dq term (faster, approximate but often sufficient)
+    Consistent   ///< Full quotient rule including db/dq (mathematically exact)
 };
 
 /**
- * Lambda update strategy for Levenberg-Marquardt.
+ * @brief Lambda update strategy for Levenberg-Marquardt.
+ *
+ * Determines how the damping parameter lambda is adjusted during optimization.
  */
 enum class LMStrategy
 {
-    Simple,     // Binary accept/reject with fixed multipliers
-    GainRatio   // Ceres-style gain ratio with Nielsen update
+    Simple,     ///< Binary accept/reject with fixed multipliers (lambdaUp/lambdaDown)
+    GainRatio   ///< Ceres-style gain ratio with Nielsen update rule
 };
 
 /**
- * Linear solver type for Ceres backend.
+ * @brief Linear solver type for Ceres backend.
+ *
+ * Selects the algorithm used to solve the linear system at each iteration.
+ * The optimal choice depends on problem size and available hardware.
  */
 enum class LinearSolverType
 {
-    DenseQR,              // Default, good for small problems
-    DenseSchur,           // For bundle adjustment style problems
-    SparseSchur,          // Sparse version of Schur
-    IterativeSchur,       // Iterative, good for large multi-view problems
-    CudaDenseCholesky,    // GPU-accelerated dense Cholesky (requires CUDA build)
-    CudaSparseCholesky    // GPU-accelerated sparse Cholesky (requires CUDA + SuiteSparse)
+    DenseQR,              ///< Dense QR decomposition (default, good for small problems)
+    DenseSchur,           ///< Dense Schur complement (for bundle adjustment style problems)
+    SparseSchur,          ///< Sparse Schur complement (for larger sparse problems)
+    IterativeSchur,       ///< Iterative Schur (good for large multi-view problems)
+    CudaDenseCholesky,    ///< GPU-accelerated dense Cholesky (requires CUDA build)
+    CudaSparseCholesky    ///< GPU-accelerated sparse Cholesky (requires CUDA + SuiteSparse)
 };
 
 /**
- * Preconditioner type for iterative solvers.
+ * @brief Preconditioner type for iterative solvers.
+ *
+ * Used with IterativeSchur linear solver to improve convergence.
  */
 enum class PreconditionerType
 {
-    Identity,
-    Jacobi,
-    SchurJacobi
+    Identity,    ///< No preconditioning
+    Jacobi,      ///< Jacobi (diagonal) preconditioner
+    SchurJacobi  ///< Block Jacobi on the Schur complement
 };
 
 /**
- * Incidence weighting mode for grazing angle handling.
+ * @brief Incidence weighting mode for grazing angle handling.
+ *
+ * Controls how the cosine of the incidence angle affects correspondence weights.
+ * Larger weights for perpendicular incidence reduce sensitivity to grazing angles.
  */
 enum class WeightingMode
 {
-    Abs,      // weight = |c|
-    SqrtAbs   // weight = sqrt(|c|)
+    Abs,      ///< Linear weighting: weight = |cos(angle)|
+    SqrtAbs   ///< Square root weighting: weight = sqrt(|cos(angle)|)
 };
 
 // ============================================================================
@@ -100,15 +133,24 @@ enum class WeightingMode
 // ============================================================================
 
 /**
- * Geometry weighting parameters for incidence-based weighting.
+ * @brief Geometry weighting parameters for incidence-based weighting.
+ *
+ * Controls how correspondences are weighted based on the angle between
+ * the ray direction and surface normal. This helps reduce the influence
+ * of grazing-angle measurements which are typically less reliable.
  */
 struct GeometryWeighting
 {
-    bool enable_weight = true;
-    bool enable_gate = true;
-    double tau = 0.2;
-    WeightingMode mode = WeightingMode::SqrtAbs;
+    bool enable_weight = true;   ///< Enable incidence-angle weighting
+    bool enable_gate = true;     ///< Enable gating (reject if |cos| < tau)
+    double tau = 0.2;            ///< Cosine threshold for gating and clamping
+    WeightingMode mode = WeightingMode::SqrtAbs;  ///< Weighting function type
 
+    /**
+     * @brief Compute the weight for a correspondence.
+     * @param c Cosine of the incidence angle (dot product of ray and normal)
+     * @return Weight in range [0, 1], or 0 if gated out
+     */
     double weight(double c) const
     {
         double ac = std::abs(c);
@@ -122,29 +164,36 @@ struct GeometryWeighting
 };
 
 /**
- * Line search parameters.
+ * @brief Line search parameters for step size selection.
+ *
+ * Configures backtracking line search to find an optimal step size
+ * that sufficiently decreases the cost function.
  */
 struct LineSearchParams
 {
-    bool enabled = false;
-    int maxIterations = 10;
-    double alpha = 1.0;
-    double beta = 0.5;
+    bool enabled = false;     ///< Enable line search (if false, uses full step)
+    int maxIterations = 10;   ///< Maximum backtracking iterations
+    double alpha = 1.0;       ///< Initial step size
+    double beta = 0.5;        ///< Step size reduction factor per iteration
 };
 
 /**
- * Levenberg-Marquardt parameters.
+ * @brief Levenberg-Marquardt damping parameters.
+ *
+ * Controls the damping strategy for LM optimization. The damping parameter
+ * lambda interpolates between Gauss-Newton (lambda=0) and gradient descent
+ * (large lambda).
  */
 struct LMParams
 {
-    LMStrategy strategy = LMStrategy::Simple;
-    double lambda = 1e-3;
-    bool fixedLambda = true;
-    double lambdaUp = 10.0;
-    double lambdaDown = 0.1;
-    double lambdaMin = 1e-10;
-    double lambdaMax = 1e10;
-    double minRelativeDecrease = 1e-3;  // For GainRatio strategy
+    LMStrategy strategy = LMStrategy::Simple;  ///< Lambda update strategy
+    double lambda = 1e-3;          ///< Initial damping parameter
+    bool fixedLambda = true;       ///< If true, lambda stays constant
+    double lambdaUp = 10.0;        ///< Multiplier when step is rejected
+    double lambdaDown = 0.1;       ///< Multiplier when step is accepted
+    double lambdaMin = 1e-10;      ///< Minimum allowed lambda value
+    double lambdaMax = 1e10;       ///< Maximum allowed lambda value
+    double minRelativeDecrease = 1e-3;  ///< Minimum gain ratio for GainRatio strategy
 };
 
 // ============================================================================
@@ -152,80 +201,125 @@ struct LMParams
 // ============================================================================
 
 /**
- * Session-level parameters.
+ * @brief Session-level parameters.
  *
- * Controls backend selection and initial pose handling.
+ * Controls global settings that apply across all ICP iterations,
+ * including backend selection, initial pose handling, and GPU options.
  */
 struct SessionParams
 {
-    SolverBackend backend = SolverBackend::HandRolled;
-    bool useGridPoses = true;
-    bool fixFirstPose = true;
-    bool verbose = false;
+    SolverBackend backend = SolverBackend::HandRolled;  ///< Solver backend to use
+    bool useGridPoses = true;   ///< Initialize from grid poses (vs identity)
+    bool fixFirstPose = true;   ///< Keep first grid fixed (gauge freedom)
+    bool verbose = false;       ///< Enable verbose output
 
-    // CUDA options (only used when backend == Ceres)
-    bool useCuda = false;    // Enable CUDA acceleration for dense linear algebra
-    int cudaDeviceId = 0;    // GPU device to use (for multi-GPU systems)
+    /// @name CUDA Options
+    /// @brief Only used when backend == Ceres
+    /// @{
+    bool useCuda = false;       ///< Enable CUDA acceleration for dense linear algebra
+    int cudaDeviceId = 0;       ///< GPU device to use (for multi-GPU systems)
+    /// @}
 };
 
 /**
- * Outer loop parameters (correspondence updates).
+ * @brief Outer loop parameters for correspondence updates.
+ *
+ * Controls how correspondences are computed and filtered between
+ * ICP iterations. The outer loop re-establishes correspondences
+ * after each pose update.
  */
 struct OuterParams
 {
-    // Iteration control
-    int maxIterations = 10;
-    double convergenceTol = 1e-9;
+    /// @name Iteration Control
+    /// @{
+    int maxIterations = 10;      ///< Maximum outer loop iterations
+    double convergenceTol = 1e-9; ///< Cost change threshold for convergence
+    /// @}
 
-    // Correspondence computation
-    Vector3 rayDir{0.0, 0.0, -1.0};
-    float maxDist = 100.0f;
-    int subsampleX = 4;
-    int subsampleY = 4;
+    /// @name Correspondence Computation
+    /// @{
+    Vector3 rayDir{0.0, 0.0, -1.0};  ///< Ray direction for projection (typically -Z)
+    float maxDist = 100.0f;          ///< Maximum ray distance for intersection
+    int subsampleX = 4;              ///< Subsampling factor in X direction
+    int subsampleY = 4;              ///< Subsampling factor in Y direction
+    /// @}
 
-    // Geometry weighting
-    GeometryWeighting weighting;
+    /// @name Geometry Weighting
+    /// @{
+    GeometryWeighting weighting;     ///< Incidence-angle weighting parameters
+    /// @}
 
-    // Multi-view correspondence limits
-    int minMatch = 50;
-    int maxCorrespondences = 0;  // 0 = unlimited
-    int maxNeighbors = 0;        // 0 = unlimited
+    /// @name Multi-view Correspondence Limits
+    /// @{
+    int minMatch = 50;               ///< Minimum correspondences to consider an edge
+    int maxCorrespondences = 0;      ///< Max correspondences per edge (0 = unlimited)
+    int maxNeighbors = 0;            ///< Max neighboring grids to match (0 = unlimited)
+    /// @}
 
-    bool verbose = false;
+    bool verbose = false;            ///< Enable verbose output
 };
 
 /**
- * Inner loop parameters (solver iterations).
+ * @brief Inner loop parameters for solver iterations.
+ *
+ * Controls the nonlinear least-squares solver that optimizes poses
+ * given fixed correspondences. The inner loop runs until convergence
+ * or maximum iterations before correspondences are updated.
  */
 struct InnerParams
 {
-    // Solver selection
-    SolverType solverType = SolverType::LevenbergMarquardt;
+    /// @name Solver Selection
+    /// @{
+    SolverType solverType = SolverType::LevenbergMarquardt;  ///< GN or LM
+    /// @}
 
-    // Iteration control
-    int maxIterations = 12;
-    double translationThreshold = 1e-4;
-    double rotationThreshold = 1e-4;
+    /// @name Iteration Control
+    /// @{
+    int maxIterations = 12;           ///< Maximum inner loop iterations
+    double translationThreshold = 1e-4; ///< Translation step convergence threshold
+    double rotationThreshold = 1e-4;    ///< Rotation step convergence threshold (radians)
+    /// @}
 
-    // GN damping (ignored for LM)
-    double damping = 0.0;
+    /// @name Gauss-Newton Options
+    /// @{
+    double damping = 0.0;             ///< Fixed damping for GN (ignored for LM)
+    /// @}
 
-    // LM parameters
-    LMParams lm;
+    /// @name Levenberg-Marquardt Options
+    /// @{
+    LMParams lm;                      ///< LM-specific parameters
+    /// @}
 
-    // Line search
-    LineSearchParams lineSearch;
+    /// @name Line Search
+    /// @{
+    LineSearchParams lineSearch;      ///< Line search parameters
+    /// @}
 
-    // Jacobian policy
-    JacobianPolicy jacobianPolicy = JacobianPolicy::Simplified;
+    /// @name Jacobian Options
+    /// @{
+    JacobianPolicy jacobianPolicy = JacobianPolicy::Simplified;  ///< Jacobian computation policy
+    /// @}
 
-    // Ceres-specific (used when backend == Ceres)
-    LinearSolverType linearSolverType = LinearSolverType::DenseQR;
-    PreconditionerType preconditionerType = PreconditionerType::SchurJacobi;
+    /// @name Ceres Backend Options
+    /// @brief Only used when SessionParams::backend == Ceres
+    /// @{
+    LinearSolverType linearSolverType = LinearSolverType::DenseQR;  ///< Linear solver type
+    PreconditionerType preconditionerType = PreconditionerType::SchurJacobi;  ///< Preconditioner
+    /// @}
 
-    bool verbose = false;
+    bool verbose = false;             ///< Enable verbose output
 
-    // Factory methods
+    /// @name Factory Methods
+    /// @{
+
+    /**
+     * @brief Create Gauss-Newton solver parameters.
+     * @param maxIterations Maximum iterations
+     * @param translationThreshold Translation convergence threshold
+     * @param rotationThreshold Rotation convergence threshold (radians)
+     * @param damping Fixed damping value (0 = pure GN)
+     * @return Configured InnerParams for Gauss-Newton
+     */
     static InnerParams gaussNewton(
         int maxIterations = 12,
         double translationThreshold = 1e-4,
@@ -241,6 +335,15 @@ struct InnerParams
         return p;
     }
 
+    /**
+     * @brief Create Levenberg-Marquardt solver parameters.
+     * @param maxIterations Maximum iterations
+     * @param translationThreshold Translation convergence threshold
+     * @param rotationThreshold Rotation convergence threshold (radians)
+     * @param lambda Initial damping parameter
+     * @param adaptiveLambda If true, lambda adapts; if false, stays fixed
+     * @return Configured InnerParams for Levenberg-Marquardt
+     */
     static InnerParams levenbergMarquardt(
         int maxIterations = 12,
         double translationThreshold = 1e-4,
@@ -257,6 +360,7 @@ struct InnerParams
         p.lm.fixedLambda = !adaptiveLambda;
         return p;
     }
+    /// @}
 };
 
 // ============================================================================
@@ -264,8 +368,13 @@ struct InnerParams
 // ============================================================================
 
 /**
- * Convert InnerParams to Ceres solver options.
- * Used internally by Ceres backend.
+ * @brief Convert InnerParams to Ceres solver options.
+ *
+ * Maps the ICP parameter structure to Ceres-specific options.
+ * Used internally by the Ceres backend.
+ *
+ * @param inner Inner loop parameters to convert
+ * @return Configured Ceres solver options
  */
 inline ceres::Solver::Options toCeresSolverOptions(const InnerParams& inner)
 {
@@ -341,12 +450,23 @@ inline ceres::Solver::Options toCeresSolverOptions(const InnerParams& inner)
 // ============================================================================
 // Default Parameter Presets
 // ============================================================================
-// All defaults for each solver mode are grouped here for easy viewing/editing.
 
+/**
+ * @brief Default parameter presets for common ICP configurations.
+ *
+ * Provides factory functions returning pre-configured parameter sets
+ * optimized for different use cases. These serve as sensible starting
+ * points that can be further customized.
+ */
 namespace Defaults
 {
 
-/// Single-pose ICP defaults (one moving grid aligned to fixed target)
+/**
+ * @brief Single-pose ICP defaults.
+ *
+ * Configuration for aligning one moving grid to a fixed target grid.
+ * Suitable for pairwise registration problems.
+ */
 namespace SinglePose
 {
     inline InnerParams inner()
@@ -408,7 +528,12 @@ namespace SinglePose
     }
 }
 
-/// Two-pose ICP defaults (two grids optimized simultaneously)
+/**
+ * @brief Two-pose ICP defaults.
+ *
+ * Configuration for simultaneously optimizing two grid poses.
+ * Both grids are allowed to move (unless fixFirstPose is set).
+ */
 namespace TwoPose
 {
     inline InnerParams inner()
@@ -460,7 +585,13 @@ namespace TwoPose
     }
 }
 
-/// Multi-view ICP defaults (many grids optimized together)
+/**
+ * @brief Multi-view ICP defaults.
+ *
+ * Configuration for jointly optimizing many grid poses.
+ * Uses Ceres backend with iterative Schur complement solver
+ * for efficient handling of the large sparse problem.
+ */
 namespace MultiView
 {
     inline InnerParams inner()
@@ -523,7 +654,12 @@ namespace MultiView
     }
 }
 
-/// Multi-view ICP with CUDA acceleration (requires Ceres built with CUDA)
+/**
+ * @brief Multi-view ICP with CUDA acceleration.
+ *
+ * Same as MultiView but uses GPU-accelerated dense Cholesky solver.
+ * Requires Ceres built with CUDA support.
+ */
 namespace MultiViewCuda
 {
     inline InnerParams inner()

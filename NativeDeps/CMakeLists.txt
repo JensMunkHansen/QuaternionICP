@@ -1,18 +1,14 @@
+# TODO: Move MKL stuff into spsMKL.cmake
 cmake_minimum_required(VERSION 3.22...3.28)
 
-# TODO: Move MKL stuff into spsMKL.cmake
+# Add CMake module path for functionalities
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../CMake")
 
-# CUDA is optional - only enable if available
-option(USE_CUDA "Enable CUDA support" OFF)
-
-if(USE_CUDA)
+if(SPS_USE_CUDA)
   project(Dependencies LANGUAGES C CXX CUDA)
 else()
   project(Dependencies LANGUAGES C CXX)
 endif()
-
-# Add CMake module path for functionalities
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../CMake")
 
 # Require MULTI_REGISTRATION_ROOT environment variable (for reference in messages)
 # CMAKE_INSTALL_PREFIX should be passed from command line (e.g., by dependencies.sh)
@@ -239,7 +235,7 @@ if(USE_SUITESPARSE)
 
   set(SUITESPARSE_CMAKE_ARGS
     ${COMMON_CMAKE_ARGS}
-    "-DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config;amd;colamd;camd;ccolamd;cholmod;spqr"    
+    "-DSUITESPARSE_ENABLE_PROJECTS=suitesparse_config;amd;colamd;camd;ccolamd;cholmod;spqr"
     -DSUITESPARSE_USE_FORTRAN=OFF
     -DBUILD_TESTING=OFF
   )

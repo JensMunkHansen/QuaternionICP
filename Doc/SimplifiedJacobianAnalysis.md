@@ -87,7 +87,7 @@ The consistent Jacobian is validated. This confirms:
 - The quotient-rule term is required
 - The analytic derivation is correct
 
-@section sja_best_eps Why Best \f$\varepsilon\f$ is Still \f$10^{-6}\f$ for Simplified
+@section sja_best_eps Why Optimal Epsilon Remains 1e-6 for Simplified
 
 The FD epsilon sweep reflects the smoothness of the **true residual**,
 not the analytic approximation chosen.

@@ -130,7 +130,7 @@ The difference between consistent and simplified:
 
 This term is **not negligible** in general.
 
-@subsection rpj_rot_db_dw Computing \f$\partial b/\partial\boldsymbol{\omega}\f$
+@subsection rpj_rot_db_dw Computing the Denominator Derivative
 
 For right-multiplication perturbation \f$R \to R\exp(\widehat{\boldsymbol{\omega}})\f$:
 

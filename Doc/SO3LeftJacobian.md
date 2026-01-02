@@ -67,7 +67,7 @@ we write:
 
 @section so3lj_special_cases Special Cases
 
-@subsection so3lj_identity At \f$\boldsymbol{\omega} = 0\f$
+@subsection so3lj_identity At Zero Rotation
 
 \f[
   V(\mathbf{0}) = I

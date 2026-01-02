@@ -1,13 +1,28 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) Jens Munk Hansen
 
-#pragma once
 /**
- * Helper functions for ICP solvers.
+ * @file ICPHelpers.h
+ * @brief Helper functions for ICP solvers.
+ * @author Jens Munk Hansen
+ * @date 2024-2025
  *
- * Shared utilities used by both Gauss-Newton and Levenberg-Marquardt solvers.
- * Includes normal equation building, cost evaluation, and convergence checks.
+ * @details This header provides shared utility functions used by both
+ * Gauss-Newton and Levenberg-Marquardt ICP solvers. Key functionality includes:
+ *
+ * - **Cost computation**: Evaluate residual cost at a given SE(3) pose
+ * - **Normal equations**: Build the Hessian approximation (J^T J) and
+ *   gradient (J^T r) for least-squares optimization
+ * - **Convergence checking**: Determine if the tangent space update is
+ *   below translation and rotation thresholds
+ * - **Line search**: Backtracking line search for step size selection
+ * - **Pose updates**: Apply SE(3) updates with quaternion normalization
+ *
+ * All functions operate on the 7D ambient pose representation
+ * [qx, qy, qz, qw, tx, ty, tz] with 6D tangent space updates.
  */
+
+#pragma once
 
 // Standard C++ headers
 #include <cmath>
@@ -25,25 +40,35 @@
 namespace ICP
 {
 
-/// Result from inner solver (after iterating to convergence)
+/**
+ * @brief Result from the inner solver after iterating to convergence.
+ *
+ * Contains the final optimized pose and convergence statistics
+ * from a single inner loop execution.
+ */
 struct InnerSolveResult
 {
-    Pose7 pose;       // Final pose after inner iterations
-    double rms;       // Final RMS
-    int iterations;   // Number of inner iterations performed
-    int valid_count;  // Number of valid correspondences
-    bool converged;   // Whether step tolerance was reached
+    Pose7 pose;       ///< Final pose after inner iterations [qx, qy, qz, qw, tx, ty, tz]
+    double rms;       ///< Final root-mean-square residual
+    int iterations;   ///< Number of inner iterations performed
+    int valid_count;  ///< Number of valid correspondences used
+    bool converged;   ///< True if step tolerance was reached before max iterations
 };
 
 /**
- * Compute cost at a given pose.
+ * @brief Compute cost at a given pose.
  *
- * @param fwdCorrs   Forward correspondences
- * @param revCorrs   Reverse correspondences
- * @param pose       7D pose to evaluate
- * @param rayDir     Ray direction
- * @param weighting  Geometry weighting parameters
- * @return           Sum of squared residuals
+ * Evaluates the sum of squared residuals for all correspondences
+ * at the specified SE(3) pose. Used for cost evaluation in line
+ * search and convergence checking.
+ *
+ * @tparam JacobianPolicy Jacobian computation policy (simplified or consistent)
+ * @param fwdCorrs   Forward correspondences (source to target)
+ * @param revCorrs   Reverse correspondences (target to source)
+ * @param pose       7D pose to evaluate [qx, qy, qz, qw, tx, ty, tz]
+ * @param rayDir     Ray direction for projection
+ * @param weighting  Geometry weighting parameters for incidence handling
+ * @return Sum of squared residuals (cost)
  */
 template<typename JacobianPolicy = RayJacobianSimplified>
 double computeCostAtPose(
@@ -83,15 +108,15 @@ double computeCostAtPose(
 }
 
 /**
- * Check if delta is below convergence thresholds.
+ * @brief Check if delta is below convergence thresholds.
  *
- * Uses separate thresholds for translation and rotation components.
- * delta = [translation (3), rotation (3)] in tangent space.
+ * Uses separate thresholds for translation and rotation components
+ * to determine if the optimization has converged.
  *
- * @param delta             Tangent space update
- * @param transThreshold    Translation threshold (same units as data, e.g., mm)
- * @param rotThreshold      Rotation threshold (radians)
- * @return                  True if both components are below threshold
+ * @param delta          Tangent space update [v_x, v_y, v_z, w_x, w_y, w_z]
+ * @param transThreshold Translation threshold (same units as data, e.g., mm)
+ * @param rotThreshold   Rotation threshold (radians)
+ * @return True if both translation and rotation norms are below their thresholds
  */
 inline bool isDeltaConverged(const Tangent6& delta, double transThreshold, double rotThreshold)
 {
@@ -101,10 +126,13 @@ inline bool isDeltaConverged(const Tangent6& delta, double transThreshold, doubl
 }
 
 /**
- * Apply SE(3) update and normalize quaternion.
+ * @brief Apply SE(3) update and normalize quaternion.
  *
- * @param pose   Current pose (modified in place)
- * @param delta  Tangent space update
+ * Updates the pose using right-multiplication: T_new = T * Exp(delta).
+ * The quaternion component is normalized after the update.
+ *
+ * @param[in,out] pose Current pose, modified in place
+ * @param delta        Tangent space update [v_x, v_y, v_z, w_x, w_y, w_z]
  */
 inline void applyDeltaAndNormalize(Pose7& pose, const Tangent6& delta)
 {
@@ -115,20 +143,22 @@ inline void applyDeltaAndNormalize(Pose7& pose, const Tangent6& delta)
 }
 
 /**
- * Backtracking line search to find optimal step size.
+ * @brief Backtracking line search to find optimal step size.
  *
- * Finds alpha that reduces cost, using simple backtracking.
- * Starts with alpha=1 and reduces by factor beta until cost decreases.
+ * Implements simple backtracking line search to find a step size
+ * that reduces the cost. Starts with alpha=1 and reduces by factor
+ * beta until cost decreases or maximum iterations reached.
  *
- * @param fwdCorrs     Forward correspondences
- * @param revCorrs     Reverse correspondences
- * @param pose         Current pose
- * @param delta        Full step direction
- * @param currentCost  Cost at current pose
- * @param rayDir       Ray direction
- * @param weighting    Geometry weighting
- * @param params       Line search parameters
- * @return             Optimal step size alpha
+ * @tparam JacobianPolicy Jacobian computation policy (simplified or consistent)
+ * @param fwdCorrs     Forward correspondences (source to target)
+ * @param revCorrs     Reverse correspondences (target to source)
+ * @param pose         Current pose [qx, qy, qz, qw, tx, ty, tz]
+ * @param delta        Full step direction in tangent space
+ * @param currentCost  Cost at current pose (for comparison)
+ * @param rayDir       Ray direction for projection
+ * @param weighting    Geometry weighting parameters
+ * @param params       Line search configuration (alpha, beta, maxIterations)
+ * @return Optimal step size alpha in (0, 1]
  */
 template<typename JacobianPolicy = RayJacobianSimplified>
 double lineSearch(
@@ -165,20 +195,26 @@ double lineSearch(
 }
 
 /**
- * Build normal equations and compute cost in one pass.
+ * @brief Build normal equations and compute cost in one pass.
  *
- * Accumulates H = J^T J, b = J^T r, and sum of squared residuals.
+ * Accumulates the Gauss-Newton normal equations by iterating over
+ * all correspondences. Computes the Hessian approximation H = J^T J,
+ * gradient b = J^T r, and sum of squared residuals in a single pass.
  *
- * @param fwdCorrs   Forward correspondences
- * @param revCorrs   Reverse correspondences
- * @param pose       Current pose
- * @param rayDir     Ray direction
- * @param weighting  Geometry weighting
- * @param H          Output: Hessian approximation (J^T J)
- * @param b          Output: gradient (J^T r)
- * @param fwd_valid  Output: number of valid forward correspondences
- * @param rev_valid  Output: number of valid reverse correspondences
- * @return           Sum of squared residuals (cost)
+ * The Jacobians are computed in the 7D ambient space and projected
+ * to 6D tangent space using the plus-Jacobian.
+ *
+ * @tparam JacobianPolicy Jacobian computation policy (simplified or consistent)
+ * @param fwdCorrs       Forward correspondences (source to target)
+ * @param revCorrs       Reverse correspondences (target to source)
+ * @param pose           Current pose [qx, qy, qz, qw, tx, ty, tz]
+ * @param rayDir         Ray direction for projection
+ * @param weighting      Geometry weighting parameters
+ * @param[out] H         Hessian approximation (6x6 matrix J^T J)
+ * @param[out] b         Gradient vector (6x1 vector J^T r)
+ * @param[out] fwd_valid Number of valid forward correspondences used
+ * @param[out] rev_valid Number of valid reverse correspondences used
+ * @return Sum of squared residuals (cost)
  */
 template<typename JacobianPolicy = RayJacobianSimplified>
 double buildNormalEquations(

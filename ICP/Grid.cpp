@@ -44,27 +44,35 @@ bool Grid::loadFromExr(const std::string& filepath, bool loadColors)
         return false;
     }
 
-    // Look for pose matrix in custom attributes (cameraPose or UserTransform)
+    // Read camera pose from cameraPoseRow0..3 (v4f attributes, 4 floats each)
+    const float* poseRows[4] = {nullptr, nullptr, nullptr, nullptr};
     for (int i = 0; i < header.num_custom_attributes; i++)
     {
         const auto& attr = header.custom_attributes[i];
-        if (std::strcmp(attr.name, "cameraPose") == 0 ||
-          std::strcmp(attr.name, "UserTransform") == 0)
+        if (attr.size == 16)  // 4 floats = v4f
         {
-            if (attr.size == 64)
-            { // 16 floats = 4x4 matrix (m44f)
-                const float* mat = reinterpret_cast<const float*>(attr.value);
-                Eigen::Matrix4d m;
-                for (int r = 0; r < 4; r++)
-                {
-                    for (int c = 0; c < 4; c++)
-                    {
-                        m(r, c) = static_cast<double>(mat[r * 4 + c]);
-                    }
-                }
-                initialPose = Eigen::Isometry3d(m);
+            if (std::strcmp(attr.name, "cameraPoseRow0") == 0)
+                poseRows[0] = reinterpret_cast<const float*>(attr.value);
+            else if (std::strcmp(attr.name, "cameraPoseRow1") == 0)
+                poseRows[1] = reinterpret_cast<const float*>(attr.value);
+            else if (std::strcmp(attr.name, "cameraPoseRow2") == 0)
+                poseRows[2] = reinterpret_cast<const float*>(attr.value);
+            else if (std::strcmp(attr.name, "cameraPoseRow3") == 0)
+                poseRows[3] = reinterpret_cast<const float*>(attr.value);
+        }
+    }
+
+    if (poseRows[0] && poseRows[1] && poseRows[2] && poseRows[3])
+    {
+        Eigen::Matrix4d poseMatrix;
+        for (int r = 0; r < 4; r++)
+        {
+            for (int c = 0; c < 4; c++)
+            {
+                poseMatrix(r, c) = static_cast<double>(poseRows[r][c]);
             }
         }
+        initialPose = Eigen::Isometry3d(poseMatrix);
     }
 
     // Request float for all channels

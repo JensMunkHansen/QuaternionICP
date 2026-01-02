@@ -1,0 +1,27 @@
+var searchData=
+[
+  ['easier_20residual_20and_20jacobian_20implementation_0',['6. Easier residual and Jacobian implementation',['../se3_ambient_vs_tangent.html#autotoc_md25',1,'']]],
+  ['edge_1',['Edge',['../structICP_1_1Edge.html',1,'ICP']]],
+  ['eigentypes_2eh_2',['EigenTypes.h',['../EigenTypes_8h.html',1,'']]],
+  ['eigenutils_2eh_3',['EigenUtils.h',['../EigenUtils_8h.html',1,'']]],
+  ['embreebackend_4',['EmbreeBackend',['../classICP_1_1EmbreeBackend.html',1,'ICP']]],
+  ['enable_5fgate_5',['enable_gate',['../structICP_1_1GeometryWeighting.html#ac5de31e53c339e5d2d7255cfaddf90a8',1,'ICP::GeometryWeighting']]],
+  ['enable_5fgate_20and_20abs_20c_20tau_6',['Case A: enable_gate and abs(c) &lt; tau',['../md_Doc_2JacobianPedantic.html#autotoc_md42',1,'']]],
+  ['enable_5fweight_7',['enable_weight',['../md_Doc_2JacobianPedantic.html#autotoc_md43',1,'Case B: not enable_weight'],['../structICP_1_1GeometryWeighting.html#a69be7f5e37b74bc2d882f1e565ee7e48',1,'ICP::GeometryWeighting::enable_weight']]],
+  ['enable_5fweight_20and_20not_20gated_8',['Case C: enable_weight and not gated',['../md_Doc_2JacobianPedantic.html#autotoc_md44',1,'']]],
+  ['enabled_9',['enabled',['../structICP_1_1LineSearchParams.html#a0cc8cb3733a39a7657cdfb7758e206c4',1,'ICP::LineSearchParams']]],
+  ['encoding_10',['Facet ID Encoding',['../TriangulationMarks_8h.html#triangulation_facet',1,'']]],
+  ['epsilon_11',['epsilon',['../epsilon_sweep_guide.html#esg_roundoff',1,'Roundoff Error (Small Epsilon)'],['../epsilon_sweep_guide.html#esg_truncation',1,'Truncation Error (Large Epsilon)']]],
+  ['epsilon_20remains_201e_206_20for_20simplified_12',['Why Optimal Epsilon Remains 1e-6 for Simplified',['../simplified_jacobian_analysis.html#sja_best_eps',1,'']]],
+  ['epsilon_20sweep_20recipe_13',['Practical Epsilon Sweep Recipe',['../epsilon_sweep_guide.html#esg_practical_recipe',1,'']]],
+  ['error_20is_20around_200_20005_20to_200_2001_14',['Why the Simplified Error is Around 0.005 to 0.01',['../simplified_jacobian_analysis.html#sja_error_magnitude',1,'']]],
+  ['error_20large_20epsilon_15',['Truncation Error (Large Epsilon)',['../epsilon_sweep_guide.html#esg_truncation',1,'']]],
+  ['error_20small_20epsilon_16',['Roundoff Error (Small Epsilon)',['../epsilon_sweep_guide.html#esg_roundoff',1,'']]],
+  ['errors_17',['Two Competing Errors',['../epsilon_sweep_guide.html#esg_competing_errors',1,'']]],
+  ['euclidean_20group_18',['SE(3): Special Euclidean Group',['../SE3_8h.html#se3_se3',1,'']]],
+  ['experimental_20results_19',['Experimental Results',['../ray_projection_overview.html#rpo_experimental',1,'']]],
+  ['exponential_20',['From the Matrix Exponential',['../so3_left_jacobian.html#so3lj_series',1,'']]],
+  ['exponential_20map_21',['Context: SE(3) Exponential Map',['../so3_left_jacobian.html#so3lj_context',1,'']]],
+  ['exponential_20map_20quaternion_20form_22',['SO(3) Exponential Map (Quaternion Form)',['../SE3_8h.html#se3_expso3',1,'']]],
+  ['expression_23',['Closed-Form Expression',['../so3_left_jacobian.html#so3lj_closed_form',1,'']]]
+];

@@ -457,7 +457,8 @@ if(BUILD_CERES)
   set(CERES_PATCH_CMD "")
   if(SPS_USE_CUDA)
     set(CERES_PATCH_CMD
-      git apply ${CMAKE_CURRENT_SOURCE_DIR}/patches/ceres-cuda-arch.patch
+      git apply --reverse --check --ignore-whitespace ${CMAKE_CURRENT_SOURCE_DIR}/patches/ceres-cuda-arch.patch
+      || git apply --ignore-whitespace ${CMAKE_CURRENT_SOURCE_DIR}/patches/ceres-cuda-arch.patch
     )
   endif()
 

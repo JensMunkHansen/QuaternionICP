@@ -123,7 +123,6 @@ def main():
         print(f"  {os.path.basename(f)}")
 
         mesh, transform = load_mesh(f, include_colors=True)
-
         print(f"    triangles={mesh.GetNumberOfPolys()}, points={mesh.GetNumberOfPoints()}")
 
         # Left actor: index-based color (ignore scalars)

@@ -10,6 +10,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 include(spsCompileCommands)
 # Set output directories for all binaries
 include(spsInstallDirs)
+include(spsCopyRuntimeDlls)
 
 # Create interface library for compiler flags (must be before spsCompilerPlatformFlags)
 add_library(build INTERFACE)
@@ -19,6 +20,12 @@ option(SPS_DISABLE_AVX512 "Disable AVX-512 instructions" OFF)
 option(SPS_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 include(spsCompilerPlatformFlags)
 include(spsEigen)
+
+# MSVC preprocessor doesn't handle ##__VA_ARGS__ with trailing commas properly
+# This causes Sophus ENSURE macros to fail compilation with SOPHUS_USE_BASIC_LOGGING
+if(MSVC)
+    target_compile_definitions(build INTERFACE SOPHUS_DISABLE_ENSURES)
+endif()
 
 # Optional TBB support
 option(USE_TBB "Enable TBB for parallel algorithms" ON)

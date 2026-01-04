@@ -5,6 +5,7 @@ macro(add_icp_test name)
     add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE ICP Catch2::Catch2WithMain)
     sps_catch_discover_tests(${name} LABELS ${ICP_TEST_LABELS})
+    sps_copy_runtime_dlls(${name})
 endmacro()
 
 add_icp_test(AllBackendsTest)

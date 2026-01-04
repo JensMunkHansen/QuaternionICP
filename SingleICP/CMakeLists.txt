@@ -15,3 +15,6 @@ endif()
 
 # Create symlink and install shell completion
 sps_args_completion(${TARGET_NAME})
+
+# Copy DLLs for shared library builds on Windows
+sps_copy_runtime_dlls(${TARGET_NAME})

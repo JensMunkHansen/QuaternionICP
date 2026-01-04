@@ -69,7 +69,22 @@ if /i "%~1"=="msvc-asan" (
     shift
     goto parse_args
 )
-REM Assume it's a CMake argument
+REM Handle -D arguments (cmd.exe splits at = so -DVAR=VAL becomes -DVAR and VAL)
+set "ARG=%~1"
+if "!ARG:~0,2!"=="-D" (
+    REM Check if next arg exists and doesn't start with -
+    set "NEXTARG=%~2"
+    if defined NEXTARG (
+        if not "!NEXTARG:~0,1!"=="-" (
+            REM Combine: -DVAR + VALUE -> -DVAR=VALUE
+            set CMAKE_EXTRA_ARGS=!CMAKE_EXTRA_ARGS! !ARG!=!NEXTARG!
+            shift
+            shift
+            goto parse_args
+        )
+    )
+)
+REM Regular argument
 set CMAKE_EXTRA_ARGS=!CMAKE_EXTRA_ARGS! %~1
 shift
 goto parse_args

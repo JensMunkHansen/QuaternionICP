@@ -8,6 +8,7 @@
 #include <sstream>
 
 // Internal headers
+#include <ICP/CeresCapabilities.h>
 #include <ICP/CommonOptions.h>
 #include <ICP/ICPParams.h>
 #include <ICP/IntersectionBackend.h>
@@ -274,7 +275,32 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 
     // Solver type
     if (solver_flag) opts.solver = args::get(solver_flag);
-    if (linear_solver_flag) opts.linearSolver = args::get(linear_solver_flag);
+    if (linear_solver_flag)
+    {
+        opts.linearSolver = args::get(linear_solver_flag);
+
+        // Validate that the selected linear solver is available
+        std::string solverName;
+        switch (opts.linearSolver)
+        {
+            case CommonOptions::LinearSolver::CudaDenseCholesky:
+                solverName = "cuda-dense";
+                break;
+            case CommonOptions::LinearSolver::CudaSparseCholesky:
+                solverName = "cuda-sparse";
+                break;
+            default:
+                break;
+        }
+
+        if (!solverName.empty() && !isLinearSolverAvailable(solverName))
+        {
+            std::cerr << "Error: --linear-solver " << solverName << " is not available.\n";
+            std::cerr << "Reason: " << getLinearSolverUnavailableReason(solverName) << "\n";
+            std::cerr << "Falling back to iterative-schur.\n";
+            opts.linearSolver = CommonOptions::LinearSolver::IterativeSchur;
+        }
+    }
     if (jacobian_flag) opts.jacobianPolicy = args::get(jacobian_flag);
 
     // Line search parameters

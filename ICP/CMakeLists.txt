@@ -41,6 +41,7 @@ set(TARGET_NAME ICP)
 
 # ICP library with Grid and shared utilities
 set(ICP_HEADERS
+    CeresCapabilities.h
     CommonOptions.h
     Correspondences.h
     EigenTypes.h

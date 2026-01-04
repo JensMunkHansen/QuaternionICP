@@ -464,7 +464,7 @@ Grid& Grid::operator=(const Grid& other)
         width = other.width;
         height = other.height;
         filename = other.filename;
-        backend_.reset();  // Invalidate backend
+        invalidateBackend();  // Thread-safe backend invalidation
     }
     return *this;
 }

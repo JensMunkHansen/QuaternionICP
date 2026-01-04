@@ -1,7 +1,10 @@
+# Common labels to propagate from Catch2 tags to ctest labels
+set(ICP_TEST_LABELS python cuda backends gridsearch embree)
+
 macro(add_icp_test name)
     add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE ICP Catch2::Catch2WithMain)
-    catch_discover_tests(${name})
+    sps_catch_discover_tests(${name} LABELS ${ICP_TEST_LABELS})
 endmacro()
 
 add_icp_test(AllBackendsTest)

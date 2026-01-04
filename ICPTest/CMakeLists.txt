@@ -4,6 +4,7 @@ macro(add_icp_test name)
     catch_discover_tests(${name})
 endmacro()
 
+add_icp_test(AllBackendsTest)
 add_icp_test(CorrespondencesTest)
 add_icp_test(SE3Test)
 add_icp_test(JacobiansAmbientTest)

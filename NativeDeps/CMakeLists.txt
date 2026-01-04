@@ -205,6 +205,9 @@ endif()
 
 #------------------------------------------------------------------------------
 # Abseil - Google's C++ common libraries (no dependencies)
+# TODO: BUILD_SHARED_LIBS=ON fails on Windows with Abseil 20230125.3
+#       MSVC doesn't recognize cxx_std_17 feature in CMAKE_CXX_COMPILE_FEATURES
+#       Options: update to newer Abseil version or disable shared libs for Abseil
 #------------------------------------------------------------------------------
 if(BUILD_ABSEIL)
   message(STATUS "Will build Abseil ${ABSEIL_VERSION}")

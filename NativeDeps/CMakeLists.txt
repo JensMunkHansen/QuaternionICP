@@ -230,6 +230,17 @@ endif()
 # (depends on Eigen3, optionally CUDA)
 #------------------------------------------------------------------------------
 if(USE_SUITESPARSE)
+  # SuiteSparse requires a BLAS library
+  find_package(BLAS QUIET)
+  if(NOT BLAS_FOUND AND NOT USE_MKL)
+    message(FATAL_ERROR
+      "SuiteSparse requires a BLAS library.\n"
+      "Options:\n"
+      "  -DUSE_MKL=ON\n"
+      "  Install OpenBLAS (apt, brew, vcpkg, etc.)"
+    )
+  endif()
+
   message(STATUS "Will build SuiteSparse ${SUITESPARSE_VERSION} (GPU: ${SPS_USE_CUDA})")
 
   set(SUITESPARSE_DEPENDS "")
@@ -315,7 +326,7 @@ if(USE_SUITESPARSE)
     list(APPEND SUITESPARSE_CMAKE_ARGS
       -DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}
       -DSUITESPARSE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}
-      -DCMAKE_CUDA_COMPILER=${CUDA_TOOLKIT_ROOT}/bin/nvcc
+      -DCMAKE_CUDA_COMPILER=${CMAKE_CUDA_COMPILER}
     )
   endif()
   list(APPEND SUITESPARSE_CMAKE_ARGS
@@ -387,7 +398,7 @@ if(BUILD_CERES)
     message(STATUS "  Ceres: CUDA enabled (arch=${CMAKE_CUDA_ARCHITECTURES})")
     list(APPEND CERES_CMAKE_ARGS
       -DUSE_CUDA=ON
-      -DCMAKE_CUDA_COMPILER=${CUDA_TOOLKIT_ROOT}/bin/nvcc
+      -DCMAKE_CUDA_COMPILER=${CMAKE_CUDA_COMPILER}
       -DCUDA_TOOLKIT_ROOT_DIR=${CUDA_TOOLKIT_ROOT}
     )
     # Use CMAKE_CACHE_ARGS to ensure architecture is set correctly
@@ -454,6 +465,7 @@ if(BUILD_CERES)
     GIT_REPOSITORY https://github.com/ceres-solver/ceres-solver.git
     GIT_TAG        ${CERES_VERSION}
     GIT_SHALLOW    TRUE
+    GIT_CONFIG     core.autocrlf=false
     UPDATE_COMMAND ""
     PATCH_COMMAND  ${CERES_PATCH_CMD}
     DEPENDS        ${CERES_DEPENDS}

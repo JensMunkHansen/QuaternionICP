@@ -6,6 +6,7 @@
 // Standard C++ headers
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -241,6 +242,7 @@ struct Grid
     void invalidateBackend();
 
 private:
-    // Cached intersection backend (lazy-initialized)
+    // Cached intersection backend (lazy-initialized, thread-safe)
     mutable std::unique_ptr<ICP::IntersectionBackend> backend_;
+    mutable std::mutex backendMutex_;
 };

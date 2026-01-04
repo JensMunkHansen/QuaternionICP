@@ -208,81 +208,36 @@ float Grid::dy() const
 
 std::vector<int> Grid::getTriangleVertexIndices(int subsampleX, int subsampleY) const
 {
-    std::vector<bool> used(width * height, false);
+    std::vector<int> indices;
     int nRows = height;
     int nCols = width;
     bool isSubsampled = (subsampleX > 1 || subsampleY > 1);
 
-    // Iterate over cells with subsampling stride
-    // Cell vertex layout:
-    //   i0----i1
-    //   |      |
-    //   i3----i2
-    // MarkQuadDiagonal NOT SET (diag02=false): UL/LR triangles
-    //   - Upper (UL): i0,i1,i2  - Lower (LR): i0,i2,i3
-    // MarkQuadDiagonal SET (diag02=true): UR/LL triangles
-    //   - Upper (UR): i0,i1,i3  - Lower (LL): i1,i2,i3
-    for (int j = 0; j < nRows - 1; j += subsampleY)
+    if (isSubsampled)
     {
-        for (int i = 0; i < nCols - 1; i += subsampleX)
+        // For subsampled grids, iterate with stride and check MarkPointVertex
+        for (int j = 0; j < nRows; j += subsampleY)
         {
-            int i0 = j * nCols + i;           // upper-left
-            int i1 = j * nCols + i + 1;       // upper-right
-            int i2 = (j + 1) * nCols + i + 1; // lower-right
-            int i3 = (j + 1) * nCols + i;     // lower-left
-
-            uint8_t m = marks[i0];
-            bool hasUpper = (m & 0x08) != 0;
-            bool hasLower = (m & 0x10) != 0;
-            bool diag02 = (m & 0x20) != 0;
-
-            // Only mark the upper-left vertex (i0) as used for subsampled grids
-            // This gives one ray per subsampled cell
-            if (isSubsampled)
+            for (int i = 0; i < nCols; i += subsampleX)
             {
-                if (hasUpper || hasLower)
+                int idx = j * nCols + i;
+                if (TriangulationMarks::IsValidVertex(marks[idx]))
                 {
-                    used[i0] = true;
-                }
-            }
-            else
-            {
-                // Original behavior: mark all triangle vertices
-                if (hasUpper)
-                {
-                    if (diag02)
-                    {
-                        // UR: i0,i1,i3
-                        used[i0] = used[i1] = used[i3] = true;
-                    }
-                    else
-                    {
-                        // UL: i0,i1,i2
-                        used[i0] = used[i1] = used[i2] = true;
-                    }
-                }
-                if (hasLower)
-                {
-                    if (diag02)
-                    {
-                        // LL: i1,i2,i3
-                        used[i1] = used[i2] = used[i3] = true;
-                    }
-                    else
-                    {
-                        // LR: i0,i2,i3
-                        used[i0] = used[i2] = used[i3] = true;
-                    }
+                    indices.push_back(idx);
                 }
             }
         }
     }
-
-    std::vector<int> indices;
-    for (int i = 0; i < width * height; i++)
+    else
     {
-        if (used[i])
-            indices.push_back(i);
+        // For full resolution, check all vertices for MarkPointVertex
+        for (int i = 0; i < nRows * nCols; i++)
+        {
+            if (TriangulationMarks::IsValidVertex(marks[i]))
+            {
+                indices.push_back(i);
+            }
+        }
     }
     return indices;
 }
@@ -433,6 +388,7 @@ Grid::AABB Grid::computeWorldAABB(const Eigen::Isometry3d& worldPose) const
 
 ICP::IntersectionBackend& Grid::getBackend() const
 {
+    std::lock_guard<std::mutex> lock(backendMutex_);
     if (!backend_)
     {
         backend_ = ICP::createIntersectionBackend();
@@ -443,6 +399,7 @@ ICP::IntersectionBackend& Grid::getBackend() const
 
 void Grid::invalidateBackend()
 {
+    std::lock_guard<std::mutex> lock(backendMutex_);
     backend_.reset();
 }
 
@@ -450,8 +407,37 @@ void Grid::invalidateBackend()
 Grid::Grid() = default;
 Grid::~Grid() = default;
 
-Grid::Grid(Grid&&) noexcept = default;
-Grid& Grid::operator=(Grid&&) noexcept = default;
+Grid::Grid(Grid&& other) noexcept
+    : verticesAOS(std::move(other.verticesAOS))
+    , marks(std::move(other.marks))
+    , colorsRGB(std::move(other.colorsRGB))
+    , initialPose(std::move(other.initialPose))
+    , pose(std::move(other.pose))
+    , width(other.width)
+    , height(other.height)
+    , filename(std::move(other.filename))
+    , backend_(std::move(other.backend_))
+    // backendMutex_ is default-constructed (not moved)
+{
+}
+
+Grid& Grid::operator=(Grid&& other) noexcept
+{
+    if (this != &other)
+    {
+        verticesAOS = std::move(other.verticesAOS);
+        marks = std::move(other.marks);
+        colorsRGB = std::move(other.colorsRGB);
+        initialPose = std::move(other.initialPose);
+        pose = std::move(other.pose);
+        width = other.width;
+        height = other.height;
+        filename = std::move(other.filename);
+        backend_ = std::move(other.backend_);
+        // backendMutex_ stays as-is (new mutex for this object)
+    }
+    return *this;
+}
 
 Grid::Grid(const Grid& other)
     : verticesAOS(other.verticesAOS)

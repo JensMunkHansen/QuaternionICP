@@ -10,6 +10,7 @@
 // Internal headers
 #include <ICP/CommonOptions.h>
 #include <ICP/ICPParams.h>
+#include <ICP/IntersectionBackend.h>
 
 namespace ICP
 {
@@ -65,12 +66,21 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
     args::CompletionFlag completion(parser, {"complete"});
 
-    // Backend
+    // Solver backend
     args::MapFlag<std::string, CommonOptions::Backend> backend_flag(parser, "backend",
         "Solver backend", {"backend"},
         {{"handrolled7D", CommonOptions::Backend::HandRolled7D},
          {"ceres7", CommonOptions::Backend::Ceres7}},
         CommonOptions::Backend::HandRolled7D);
+
+    // Intersection backend
+    args::MapFlag<std::string, CommonOptions::IntersectionBackend> intersection_backend_flag(
+        parser, "intersection-backend",
+        "Intersection backend (auto, gridsearch, embree)", {"intersection-backend"},
+        {{"auto", CommonOptions::IntersectionBackend::Auto},
+         {"gridsearch", CommonOptions::IntersectionBackend::GridSearch},
+         {"embree", CommonOptions::IntersectionBackend::Embree}},
+        CommonOptions::IntersectionBackend::Auto);
 
     // Mode
     args::Flag test_flag(parser, "test", "Use synthetic test grids", {"test"});
@@ -199,6 +209,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
 
     // Backend selection
     if (backend_flag) opts.backend = args::get(backend_flag);
+    if (intersection_backend_flag) opts.intersectionBackend = args::get(intersection_backend_flag);
 
     // Grid type selection
     if (gridtype_flag) opts.gridType = args::get(gridtype_flag);
@@ -299,6 +310,20 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     // Multi-view memory options
     if (maxCorr) opts.maxCorrespondences = args::get(maxCorr);
     if (maxNeighbors) opts.maxNeighbors = args::get(maxNeighbors);
+
+    // Apply intersection backend setting globally
+    switch (opts.intersectionBackend)
+    {
+        case CommonOptions::IntersectionBackend::GridSearch:
+            setDefaultIntersectionBackend(IntersectionBackendType::GridSearch);
+            break;
+        case CommonOptions::IntersectionBackend::Embree:
+            setDefaultIntersectionBackend(IntersectionBackendType::Embree);
+            break;
+        default:
+            setDefaultIntersectionBackend(IntersectionBackendType::Auto);
+            break;
+    }
 
     return true;
 }

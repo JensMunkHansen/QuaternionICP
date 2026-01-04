@@ -18,6 +18,28 @@ namespace ICP
 {
 
 /**
+ * Available intersection backend types.
+ */
+enum class IntersectionBackendType
+{
+    Auto,       ///< Use default (GridSearch if available, else Embree)
+    GridSearch, ///< GridSearch linear projection (fast for structured grids)
+    Embree      ///< Intel Embree BVH (general meshes)
+};
+
+/**
+ * Set the default intersection backend type.
+ * Affects all subsequent calls to createIntersectionBackend() with Auto type.
+ * Thread-safe.
+ */
+void setDefaultIntersectionBackend(IntersectionBackendType type);
+
+/**
+ * Get the current default intersection backend type.
+ */
+IntersectionBackendType getDefaultIntersectionBackend();
+
+/**
  * Result of a ray-mesh intersection.
  */
 struct RayHit
@@ -75,9 +97,11 @@ public:
 /**
  * Factory function to create the appropriate backend.
  *
- * Returns GridSearchBackend by default.
- * When USE_EMBREE is defined at compile time, returns EmbreeBackend.
+ * @param type Backend type to create. If Auto, uses the default set by
+ *             setDefaultIntersectionBackend() (GridSearch if available).
+ * @return The created backend, or nullptr if the requested type is not available.
  */
-std::unique_ptr<IntersectionBackend> createIntersectionBackend();
+std::unique_ptr<IntersectionBackend> createIntersectionBackend(
+    IntersectionBackendType type = IntersectionBackendType::Auto);
 
 }  // namespace ICP

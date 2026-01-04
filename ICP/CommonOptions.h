@@ -16,11 +16,19 @@ namespace ICP
 
 struct CommonOptions
 {
-    // Backend selection
+    // Solver backend selection
     enum class Backend
     {
         HandRolled7D,  // Hand-rolled 7D solver
         Ceres7         // Ceres solver with 7D parameterization
+    };
+
+    // Intersection backend selection
+    enum class IntersectionBackend
+    {
+        Auto,       // Use default (GridSearch if available)
+        GridSearch, // GridSearch linear projection
+        Embree      // Intel Embree BVH
     };
 
     // Test grid type
@@ -33,6 +41,7 @@ struct CommonOptions
     // Mode
     bool useTestGrid = false;
     Backend backend = Backend::HandRolled7D;
+    IntersectionBackend intersectionBackend = IntersectionBackend::Auto;
     GridType gridType = GridType::TwoHemispheres;
 
     // Input files (single/two-grid mode)

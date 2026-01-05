@@ -42,3 +42,5 @@ Doxyfile
 /**/__pycache__
 iwyu-report.txt
 .cache/
+html/
+latex/

@@ -138,8 +138,10 @@ int main(int argc, char** argv)
                 Quaternion q(grids[i].pose[3], grids[i].pose[0],
                              grids[i].pose[1], grids[i].pose[2]);
                 Eigen::AngleAxisd aa(q);
+                Eigen::Vector3d axis = aa.axis();
                 std::cout << "  Grid " << i << ": rot=" << std::fixed << std::setprecision(2)
-                          << (aa.angle() * 180.0 / M_PI) << " deg, t=["
+                          << (aa.angle() * 180.0 / M_PI) << " deg around ["
+                          << axis[0] << ", " << axis[1] << ", " << axis[2] << "], t=["
                           << grids[i].pose[4] << ", " << grids[i].pose[5] << ", "
                           << grids[i].pose[6] << "]\n";
             }

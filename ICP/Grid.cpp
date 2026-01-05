@@ -206,6 +206,19 @@ float Grid::dy() const
     return y1 - y0;
 }
 
+int Grid::validVertexCount() const
+{
+    int count = 0;
+    for (size_t i = 0; i < marks.size(); ++i)
+    {
+        if (TriangulationMarks::IsValidVertex(marks[i]))
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
 std::vector<int> Grid::getTriangleVertexIndices(int subsampleX, int subsampleY) const
 {
     std::vector<int> indices;

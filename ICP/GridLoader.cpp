@@ -48,7 +48,7 @@ bool loadGrid(const std::string& file, Grid& grid)
     if (grid.loadFromExr(file, false))  // loadColors=false
     {
         std::cout << "  " << grid.filename << " - " << grid.width << "x" << grid.height << " ("
-                  << grid.width * grid.height << " points)"
+                  << grid.validVertexCount() << " valid vertices)"
                   << " dx=" << grid.dx() << " dy=" << grid.dy() << "\n";
         return true;
     }

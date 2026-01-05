@@ -150,6 +150,9 @@ struct Grid
     int nRows() const { return height; }
     int nCols() const { return width; }
 
+    // Count of valid vertices (Valid + Vertex bits set in marks)
+    int validVertexCount() const;
+
     // Direction is the z-axis of the initial pose (third column of rotation matrix)
     Eigen::Vector3f direction() const { return initialPose.rotation().col(2).cast<float>(); }
 

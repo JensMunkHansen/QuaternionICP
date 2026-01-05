@@ -4,6 +4,9 @@ Multi-view point cloud registration using ray-projected ICP with quaternion para
 
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://jensmunkhansen.github.io/QuaternionICP/)
 
+![Dental Registration](DentalRegistration.png)
+*Poor initial registration of dental scans. Left: index-based coloring. Right: real colors.*
+
 ## Dependencies
 
 **Required (built by `dependencies.sh`):**

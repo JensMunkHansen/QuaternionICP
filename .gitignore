@@ -4,9 +4,7 @@ Linux/
 Windows/
 Darwin/
 
-# External data (large files not versioned)
-ExternalData/*
-!ExternalData/.gitkeep
+# External data - EXR files tracked via Git LFS
 
 # IDE
 .vscode/
@@ -43,5 +41,4 @@ Doxyfile
 /**/.#*
 /**/__pycache__
 iwyu-report.txt
-ExternalData/
 .cache/

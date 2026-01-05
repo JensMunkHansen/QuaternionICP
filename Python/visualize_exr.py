@@ -17,6 +17,7 @@ from exr_loader import load_exr
 from decode_triangulation import exr_grid_to_polydata
 
 # VTK imports - specific modules only
+from vtkmodules.vtkCommonColor import vtkNamedColors
 from vtkmodules.vtkCommonTransforms import vtkTransform
 from vtkmodules.vtkFiltersCore import vtkPolyDataNormals
 from vtkmodules.vtkRenderingCore import (
@@ -63,6 +64,8 @@ def parse_args():
                         help="Folder containing EXR files")
     parser.add_argument("-n", "--max-grids", type=int, default=10,
                         help="Maximum number of grids to display (0=all)")
+    parser.add_argument("-s", "--step", type=int, default=1,
+                        help="Step size: visualize every nth grid")
     parser.add_argument("--indices", type=str, default="",
                         help="Specific grid indices to load, e.g. '0,1,3' or '0-5'")
     return parser.parse_args()
@@ -99,6 +102,10 @@ def main():
     else:
         exr_files = all_exr_files
 
+    # Apply step (every nth grid)
+    if args.step > 1:
+        exr_files = exr_files[::args.step]
+
     # Apply max-grids limit
     if args.max_grids > 0:
         exr_files = exr_files[:args.max_grids]
@@ -109,14 +116,20 @@ def main():
     index_colors = [(1,0,0), (0,1,0), (0,0,1), (1,1,0), (1,0,1),
                     (0,1,1), (1,0.5,0), (0.5,0,1), (0,0.5,0), (0.5,0.5,0.5)]
 
+    colors = vtkNamedColors()
+
     # Left renderer: index-based coloring
     renderer_left = vtkRenderer()
-    renderer_left.SetBackground(0.1, 0.1, 0.1)
+    renderer_left.SetBackground(colors.GetColor3d("steel_blue"))
+    renderer_left.SetBackground2(colors.GetColor3d("steel_blue_light"))
+    renderer_left.GradientBackgroundOn()
     renderer_left.SetViewport(0.0, 0.0, 0.5, 1.0)
 
     # Right renderer: real colors from EXR
     renderer_right = vtkRenderer()
-    renderer_right.SetBackground(0.1, 0.1, 0.1)
+    renderer_right.SetBackground(colors.GetColor3d("steel_blue"))
+    renderer_right.SetBackground2(colors.GetColor3d("steel_blue_light"))
+    renderer_right.GradientBackgroundOn()
     renderer_right.SetViewport(0.5, 0.0, 1.0, 1.0)
 
     for i, f in enumerate(exr_files):

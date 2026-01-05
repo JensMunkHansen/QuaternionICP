@@ -34,7 +34,7 @@ include(ExternalProject)
 include(CMakeDependentOption)
 include(spsSBOM)
 include(spsCUDA)
-set(SPS_USE_CUDA USE_CUDA)
+set(SPS_USE_CUDA ${USE_CUDA})
 
 
 # Control verbosity of ExternalProject builds

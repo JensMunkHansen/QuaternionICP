@@ -10,7 +10,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 include(spsCompileCommands)
 # Set output directories for all binaries
 include(spsInstallDirs)
-include(spsCopyRuntimeDlls)
+include(spsTargets)
 
 # Create interface library for compiler flags (must be before spsCompilerPlatformFlags)
 add_library(build INTERFACE)

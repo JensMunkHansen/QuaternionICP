@@ -142,5 +142,5 @@ This is used when converting from SE(3) to the Lie algebra (logarithm map).
 
 @section so3lj_references References
 
-- Barfoot, T. D. (2017). *State Estimation for Robotics*. Cambridge University Press.
-- Solà, J. et al. (2018). *A micro Lie theory for state estimation in robotics*.
+- Barfoot, T. D. (2017). *State Estimation for Robotics*. Cambridge University Press. [PDF](http://asrl.utias.utoronto.ca/~tdb/bib/barfoot_ser17.pdf)
+- Solà, J. et al. (2018). *A micro Lie theory for state estimation in robotics*. [arXiv:1812.01537](https://arxiv.org/abs/1812.01537)

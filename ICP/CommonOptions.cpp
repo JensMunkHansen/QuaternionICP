@@ -143,6 +143,14 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
          {"cuda-sparse", CommonOptions::LinearSolver::CudaSparseCholesky}},
         CommonOptions::LinearSolver::DenseQR);
 
+    // Preconditioner type for iterative solvers
+    args::MapFlag<std::string, CommonOptions::Preconditioner> preconditioner_flag(parser, "preconditioner",
+        "Preconditioner type: identity, jacobi, schur-jacobi (default)", {"preconditioner"},
+        {{"identity", CommonOptions::Preconditioner::Identity},
+         {"jacobi", CommonOptions::Preconditioner::Jacobi},
+         {"schur-jacobi", CommonOptions::Preconditioner::SchurJacobi}},
+        CommonOptions::Preconditioner::SchurJacobi);
+
     // Jacobian policy
     args::MapFlag<std::string, CommonOptions::Jacobian> jacobian_flag(parser, "jacobian",
         "Jacobian policy: simplified (default) or consistent", {"jacobian"},
@@ -301,6 +309,7 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
             opts.linearSolver = CommonOptions::LinearSolver::IterativeSchur;
         }
     }
+    if (preconditioner_flag) opts.preconditioner = args::get(preconditioner_flag);
     if (jacobian_flag) opts.jacobianPolicy = args::get(jacobian_flag);
 
     // Line search parameters
@@ -407,6 +416,20 @@ InnerParams commonOptionsToInnerParams(const CommonOptions& opts)
             break;
         case CommonOptions::LinearSolver::CudaSparseCholesky:
             params.linearSolverType = LinearSolverType::CudaSparseCholesky;
+            break;
+    }
+
+    // Preconditioner type
+    switch (opts.preconditioner)
+    {
+        case CommonOptions::Preconditioner::Identity:
+            params.preconditionerType = PreconditionerType::Identity;
+            break;
+        case CommonOptions::Preconditioner::Jacobi:
+            params.preconditionerType = PreconditionerType::Jacobi;
+            break;
+        case CommonOptions::Preconditioner::SchurJacobi:
+            params.preconditionerType = PreconditionerType::SchurJacobi;
             break;
     }
 

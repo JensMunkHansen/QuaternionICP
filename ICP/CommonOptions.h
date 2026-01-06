@@ -110,6 +110,15 @@ struct CommonOptions
     };
     LinearSolver linearSolver = LinearSolver::DenseQR;
 
+    // Preconditioner type for iterative solvers
+    enum class Preconditioner
+    {
+        Identity,    // No preconditioning
+        Jacobi,      // Jacobi (diagonal) preconditioner
+        SchurJacobi  // Block Jacobi on the Schur complement
+    };
+    Preconditioner preconditioner = Preconditioner::SchurJacobi;
+
     // Jacobian policy
     enum class Jacobian
     {

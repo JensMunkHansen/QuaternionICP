@@ -96,11 +96,10 @@ int main(int argc, char** argv)
         OuterParams outer = commonOptionsToOuterParams(opts);
         InnerParams inner = commonOptionsToInnerParams(opts);
 
-        // Multi-view uses ITERATIVE_SCHUR by default
+        // Multi-view uses ITERATIVE_SCHUR by default (preconditioner comes from opts)
         if (opts.linearSolver == CommonOptions::LinearSolver::DenseQR)
         {
             inner.linearSolverType = LinearSolverType::IterativeSchur;
-            inner.preconditionerType = PreconditionerType::SchurJacobi;
         }
 
         // Display configuration

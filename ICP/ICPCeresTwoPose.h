@@ -312,6 +312,13 @@ CeresTwoPoseResult solveICPCeresTwoPose(
             break;
         }
         prev_rms = result.rms;
+
+        // Early exit if Ceres converged in 1 iteration (same as MultiViewICP)
+        if (innerResult.iterations <= 1)
+        {
+            result.converged = true;
+            break;
+        }
     }
 
     if (outerParams.verbose)

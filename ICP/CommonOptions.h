@@ -60,6 +60,9 @@ struct CommonOptions
     int maxCorrespondences = 200; // Max correspondences per edge (0 = unlimited)
     int maxNeighbors = 0;        // Max neighboring grids per grid (0 = unlimited)
 
+    // Force multi-view solver for two-grid mode (for testing)
+    bool useMultiViewSolver = false;
+
     // Synthetic grid parameters (test mode)
     int gridWidth = 32;
     int gridHeight = 32;

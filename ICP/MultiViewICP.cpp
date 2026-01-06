@@ -229,34 +229,63 @@ MultiViewICPResult runMultiViewICP(
         // Add residuals for each edge
         for (const auto& edge : edges)
         {
+            // Determine if this is a forward edge (srcIdx < dstIdx) or reverse edge
+            bool isForward = edge.srcIdx < edge.dstIdx;
+            int poseIdxA = isForward ? edge.srcIdx : edge.dstIdx;  // Canonical order: lower index
+            int poseIdxB = isForward ? edge.dstIdx : edge.srcIdx;  // Canonical order: higher index
+
             for (const auto& c : edge.correspondences)
             {
                 double nDotD = c.tgtNormal.cast<double>().dot(outer.rayDir);
                 if (std::abs(nDotD) < cosAngleThresh)
                     continue;
 
-                // ForwardRayCostTwoPose: srcPoint in src frame, tgtPoint/tgtNormal in dst frame
                 ceres::CostFunction* costFn = nullptr;
-                if (inner.jacobianPolicy == JacobianPolicy::Consistent)
+                if (isForward)
                 {
-                    costFn = ForwardRayCostTwoPose<RayJacobianConsistent>::Create(
-                        c.srcPoint.cast<double>(),
-                        c.tgtPoint.cast<double>(),
-                        c.tgtNormal.cast<double>(),
-                        outer.rayDir,
-                        outer.weighting);
+                    // Forward: ray from A to B, srcPoint in A, tgtPoint/tgtNormal in B
+                    if (inner.jacobianPolicy == JacobianPolicy::Consistent)
+                    {
+                        costFn = ForwardRayCostTwoPose<RayJacobianConsistent>::Create(
+                            c.srcPoint.cast<double>(),
+                            c.tgtPoint.cast<double>(),
+                            c.tgtNormal.cast<double>(),
+                            outer.rayDir,
+                            outer.weighting);
+                    }
+                    else
+                    {
+                        costFn = ForwardRayCostTwoPose<RayJacobianSimplified>::Create(
+                            c.srcPoint.cast<double>(),
+                            c.tgtPoint.cast<double>(),
+                            c.tgtNormal.cast<double>(),
+                            outer.rayDir,
+                            outer.weighting);
+                    }
                 }
                 else
                 {
-                    costFn = ForwardRayCostTwoPose<RayJacobianSimplified>::Create(
-                        c.srcPoint.cast<double>(),
-                        c.tgtPoint.cast<double>(),
-                        c.tgtNormal.cast<double>(),
-                        outer.rayDir,
-                        outer.weighting);
+                    // Reverse: ray from B to A, srcPoint in B (pB), tgtPoint/tgtNormal in A (qA, nA)
+                    if (inner.jacobianPolicy == JacobianPolicy::Consistent)
+                    {
+                        costFn = ReverseRayCostTwoPose<RayJacobianConsistent>::Create(
+                            c.srcPoint.cast<double>(),   // pB
+                            c.tgtPoint.cast<double>(),   // qA
+                            c.tgtNormal.cast<double>(),  // nA
+                            outer.rayDir,
+                            outer.weighting);
+                    }
+                    else
+                    {
+                        costFn = ReverseRayCostTwoPose<RayJacobianSimplified>::Create(
+                            c.srcPoint.cast<double>(),   // pB
+                            c.tgtPoint.cast<double>(),   // qA
+                            c.tgtNormal.cast<double>(),  // nA
+                            outer.rayDir,
+                            outer.weighting);
+                    }
                 }
-                problem.AddResidualBlock(costFn, nullptr,
-                    poseData[edge.srcIdx], poseData[edge.dstIdx]);
+                problem.AddResidualBlock(costFn, nullptr, poseData[poseIdxA], poseData[poseIdxB]);
             }
         }
 
@@ -270,8 +299,9 @@ MultiViewICPResult runMultiViewICP(
         // Configure and solve using canonical params
         ceres::Solver::Options options = toCeresSolverOptions(inner);
 
-        // Override linear solver for multi-view if using default (DenseQR is for small problems)
-        if (inner.linearSolverType == LinearSolverType::DenseQR)
+        // Override linear solver for large multi-view problems (>2 grids)
+        // DenseQR is fine for 2 grids, but ITERATIVE_SCHUR scales better
+        if (inner.linearSolverType == LinearSolverType::DenseQR && numGrids > 2)
         {
             options.linear_solver_type = ceres::ITERATIVE_SCHUR;
             // Preconditioner is already set by toCeresSolverOptions from inner.preconditionerType

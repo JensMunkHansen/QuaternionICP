@@ -192,6 +192,9 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     args::ValueFlag<int> maxCorr(parser, "N", "Max correspondences per edge (0=unlimited)", {"max-corr"});
     args::ValueFlag<int> maxNeighbors(parser, "N", "Max neighbors per grid (0=unlimited)", {"max-neighbors"});
 
+    // Force multi-view solver for two-grid mode (for testing/comparison)
+    args::Flag multiViewSolver(parser, "multi-view", "Use multi-view solver for two-grid mode", {"multi-view"});
+
     // Verbose
     args::Flag verbose(parser, "verbose", "Verbose output", {'v', "verbose"});
 
@@ -345,6 +348,9 @@ bool parseArgs(int argc, char** argv, CommonOptions& opts, const std::string& pr
     // Multi-view memory options
     if (maxCorr) opts.maxCorrespondences = args::get(maxCorr);
     if (maxNeighbors) opts.maxNeighbors = args::get(maxNeighbors);
+
+    // Force multi-view solver for two-grid mode
+    opts.useMultiViewSolver = multiViewSolver;
 
     // Apply intersection backend setting globally
     switch (opts.intersectionBackend)

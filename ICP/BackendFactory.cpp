@@ -33,6 +33,29 @@ IntersectionBackendType getDefaultIntersectionBackend()
     return g_defaultBackendType.load(std::memory_order_relaxed);
 }
 
+bool isBackendAvailable(IntersectionBackendType type)
+{
+    switch (type)
+    {
+        case IntersectionBackendType::Auto:
+            return true;  // Auto always succeeds (falls back)
+        case IntersectionBackendType::GridSearch:
+#if ICP_USE_GRIDSEARCH
+            return true;
+#else
+            return false;
+#endif
+        case IntersectionBackendType::Embree:
+#if ICP_USE_EMBREE
+            return true;
+#else
+            return false;
+#endif
+        default:
+            return false;
+    }
+}
+
 std::unique_ptr<IntersectionBackend> createIntersectionBackend(IntersectionBackendType type)
 {
     // Resolve Auto to the actual default

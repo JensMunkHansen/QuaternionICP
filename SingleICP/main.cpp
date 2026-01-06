@@ -11,6 +11,7 @@
 #include <ICP/ICPCeresSolver.h>
 #include <ICP/ICPParams.h>
 #include <ICP/ICPSolver.h>
+#include <ICP/IntersectionBackend.h>
 #include <ICP/SE3.h>
 #include <ICP/TestGridUtils.h>
 
@@ -23,6 +24,29 @@ int main(int argc, char** argv)
     if (!parseArgs(argc, argv, opts, "SingleICP - Ray-projection ICP for two grids"))
     {
         return 1;
+    }
+
+    // Apply intersection backend selection
+    switch (opts.intersectionBackend)
+    {
+        case CommonOptions::IntersectionBackend::GridSearch:
+            if (!isBackendAvailable(IntersectionBackendType::GridSearch))
+            {
+                std::cerr << "Error: GridSearch backend not available (compile with -DUSE_GRIDSEARCH=ON)\n";
+                return 1;
+            }
+            setDefaultIntersectionBackend(IntersectionBackendType::GridSearch);
+            break;
+        case CommonOptions::IntersectionBackend::Embree:
+            if (!isBackendAvailable(IntersectionBackendType::Embree))
+            {
+                std::cerr << "Error: Embree backend not available (compile with -DUSE_EMBREE=ON)\n";
+                return 1;
+            }
+            setDefaultIntersectionBackend(IntersectionBackendType::Embree);
+            break;
+        default:
+            break;  // Auto: use compile-time default
     }
 
     // Create or load grids
@@ -93,10 +117,7 @@ int main(int argc, char** argv)
 
             if (opts.verbose)
             {
-                Quaternion q(initialPose[3], initialPose[0], initialPose[1], initialPose[2]);
-                Eigen::AngleAxisd aa(q);
-                std::cout << "  Rotation: " << (aa.angle() * 180.0 / M_PI) << " deg around ["
-                          << aa.axis().transpose() << "]\n";
+                std::cout << "  Perturbation: " << poseToString(initialPose) << "\n";
             }
         }
 
@@ -199,18 +220,7 @@ int main(int argc, char** argv)
 
     if (opts.verbose)
     {
-        std::cout << "\n\tFinal pose:\n";
-        std::cout << "\t\tq = [" << finalPose[0] << ", " << finalPose[1] << ", "
-                  << finalPose[2] << ", " << finalPose[3] << "]\n";
-        std::cout << "\t\tt = [" << finalPose[4] << ", " << finalPose[5] << ", "
-                  << finalPose[6] << "]\n";
-
-        // Display rotation as axis-angle
-        Quaternion q_final(finalPose[3], finalPose[0],
-                          finalPose[1], finalPose[2]);
-        Eigen::AngleAxisd aa_final(q_final);
-        std::cout << "\t\tRotation: " << (aa_final.angle() * 180.0 / M_PI)
-                  << " deg around [" << aa_final.axis().transpose() << "]\n";
+        std::cout << "\n\tFinal pose: " << poseToString(finalPose) << "\n";
     }
 
     return 0;

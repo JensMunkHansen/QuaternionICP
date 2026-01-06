@@ -12,6 +12,7 @@
 #include <ICP/GridLoader.h>
 #include <ICP/ICPCeresTwoPose.h>
 #include <ICP/ICPParams.h>
+#include <ICP/IntersectionBackend.h>
 #include <ICP/MultiViewICP.h>
 #include <ICP/SE3.h>
 #include <ICP/TestGridUtils.h>
@@ -24,6 +25,29 @@ int main(int argc, char** argv)
     if (!parseArgs(argc, argv, opts, "MultiICP - Multi-view ray-projection ICP"))
     {
         return 1;
+    }
+
+    // Apply intersection backend selection
+    switch (opts.intersectionBackend)
+    {
+        case CommonOptions::IntersectionBackend::GridSearch:
+            if (!isBackendAvailable(IntersectionBackendType::GridSearch))
+            {
+                std::cerr << "Error: GridSearch backend not available (compile with -DUSE_GRIDSEARCH=ON)\n";
+                return 1;
+            }
+            setDefaultIntersectionBackend(IntersectionBackendType::GridSearch);
+            break;
+        case CommonOptions::IntersectionBackend::Embree:
+            if (!isBackendAvailable(IntersectionBackendType::Embree))
+            {
+                std::cerr << "Error: Embree backend not available (compile with -DUSE_EMBREE=ON)\n";
+                return 1;
+            }
+            setDefaultIntersectionBackend(IntersectionBackendType::Embree);
+            break;
+        default:
+            break;  // Auto: use compile-time default
     }
 
     // Check which mode we're in
@@ -134,15 +158,7 @@ int main(int argc, char** argv)
             std::cout << "\nFinal poses:\n";
             for (size_t i = 0; i < grids.size(); i++)
             {
-                Quaternion q(grids[i].pose[3], grids[i].pose[0],
-                             grids[i].pose[1], grids[i].pose[2]);
-                Eigen::AngleAxisd aa(q);
-                Eigen::Vector3d axis = aa.axis();
-                std::cout << "  Grid " << i << ": rot=" << std::fixed << std::setprecision(2)
-                          << (aa.angle() * 180.0 / M_PI) << " deg around ["
-                          << axis[0] << ", " << axis[1] << ", " << axis[2] << "], t=["
-                          << grids[i].pose[4] << ", " << grids[i].pose[5] << ", "
-                          << grids[i].pose[6] << "]\n";
+                std::cout << "  Grid " << i << ": " << poseToString(grids[i].pose) << "\n";
             }
         }
 
@@ -224,9 +240,9 @@ int main(int argc, char** argv)
         OuterParams outerParams = commonOptionsToOuterParams(opts);
 
         // Display configuration
-        std::cout << "\n=== Two-Pose ICP Configuration ===\n";
-        std::cout << "Max outer iterations: " << outerParams.maxIterations << "\n";
-        std::cout << "Convergence tolerance: " << outerParams.convergenceTol << "\n";
+        CommonOptions displayOpts = opts;
+        displayOpts.backend = CommonOptions::Backend::Ceres7;  // Two-pose always uses Ceres
+        printCommonConfig(displayOpts);
 
         // Run two-pose solver
         std::cout << "\nRunning Two-Pose Ceres ICP";
@@ -247,10 +263,7 @@ int main(int argc, char** argv)
         if (opts.verbose)
         {
             Pose7 relPose = computeRelativePose(result.poseA, result.poseB);
-            Quaternion qRel(relPose[3], relPose[0], relPose[1], relPose[2]);
-            Eigen::AngleAxisd aaRel(qRel);
-            std::cout << "\nRelative pose: " << (aaRel.angle() * 180.0 / M_PI)
-                      << " deg, t=[" << relPose[4] << ", " << relPose[5] << ", " << relPose[6] << "]\n";
+            std::cout << "\nRelative pose: " << poseToString(relPose) << "\n";
         }
     }
     else

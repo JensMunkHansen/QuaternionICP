@@ -40,6 +40,11 @@ void setDefaultIntersectionBackend(IntersectionBackendType type);
 IntersectionBackendType getDefaultIntersectionBackend();
 
 /**
+ * Check if a backend type is available (compiled in).
+ */
+bool isBackendAvailable(IntersectionBackendType type);
+
+/**
  * Result of a ray-mesh intersection.
  */
 struct RayHit

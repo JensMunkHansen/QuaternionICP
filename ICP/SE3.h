@@ -148,6 +148,9 @@
 // Standard C++ headers
 #include <array>
 #include <cmath>
+#include <iomanip>
+#include <sstream>
+#include <string>
 
 // Internal headers
 #include <ICP/EigenTypes.h>
@@ -573,6 +576,34 @@ inline Matrix3x4 dRTv_dq(const Quaternion& q, const Vector3& v)
     J.col(2) = dRdz.transpose() * v;
     J.col(3) = dRdw.transpose() * v;
     return J;
+}
+
+// -----------------------------
+// Pose formatting utilities
+// -----------------------------
+
+/**
+ * @brief Format a Pose7 as a human-readable string.
+ *
+ * Output format: "rot=X.XX deg around [ax, ay, az], t=[tx, ty, tz]"
+ *
+ * @param pose SE(3) pose [qx, qy, qz, qw, tx, ty, tz]
+ * @param precision Decimal precision for floating-point values (default: 2 for rotation, 6 for translation)
+ * @return Formatted string
+ */
+inline std::string poseToString(const Pose7& pose)
+{
+    Quaternion q(pose[3], pose[0], pose[1], pose[2]);
+    q.normalize();
+    Eigen::AngleAxisd aa(q);
+    Vector3 axis = aa.axis();
+    double angleDeg = aa.angle() * 180.0 / M_PI;
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << angleDeg << " deg around ["
+        << axis[0] << ", " << axis[1] << ", " << axis[2] << "], t=["
+        << pose[4] << ", " << pose[5] << ", " << pose[6] << "]";
+    return oss.str();
 }
 
 } // namespace ICP

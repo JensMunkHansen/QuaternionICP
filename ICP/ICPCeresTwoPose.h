@@ -274,7 +274,8 @@ CeresTwoPoseResult solveICPCeresTwoPose(
         // Forward: rays from A hitting B
         // Reverse: rays from B hitting A
         auto corrs = computeBidirectionalCorrs(
-            gridA, gridB, rayDir.cast<float>(), aToB, outerParams.maxDist);
+            gridA, gridB, rayDir.cast<float>(), aToB, outerParams.maxDist,
+            outerParams.subsampleX, outerParams.subsampleY);
 
         if (outerParams.verbose)
         {

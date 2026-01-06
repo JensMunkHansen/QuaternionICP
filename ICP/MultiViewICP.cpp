@@ -270,11 +270,11 @@ MultiViewICPResult runMultiViewICP(
         // Configure and solve using canonical params
         ceres::Solver::Options options = toCeresSolverOptions(inner);
 
-        // Override linear solver for multi-view if using default
+        // Override linear solver for multi-view if using default (DenseQR is for small problems)
         if (inner.linearSolverType == LinearSolverType::DenseQR)
         {
             options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-            options.preconditioner_type = ceres::SCHUR_JACOBI;
+            // Preconditioner is already set by toCeresSolverOptions from inner.preconditionerType
         }
 
         ceres::Solver::Summary summary;

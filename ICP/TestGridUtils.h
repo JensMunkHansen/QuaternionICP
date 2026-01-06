@@ -39,14 +39,17 @@ inline std::pair<Grid, Grid> createTestGrids(const CommonOptions& opts, bool ver
     // Create synthetic grids based on selected type
     if (opts.gridType == CommonOptions::GridType::Heightfield)
     {
+        float dx = 2.0f / (opts.gridWidth - 1);
+        float dy = 2.0f / (opts.gridHeight - 1);
+
         if (verbose)
         {
             std::cout << "\tAmplitude: " << opts.gridAmplitude << "\n";
             std::cout << "\tFrequency: " << opts.gridFrequency << "\n";
+            std::cout << "\tSpacing: dx=" << dx << ", dy=" << dy << "\n";
+            std::cout << "\tExtent: " << (opts.gridWidth - 1) * dx << " x "
+                      << (opts.gridHeight - 1) * dy << "\n";
         }
-
-        float dx = 2.0f / (opts.gridWidth - 1);
-        float dy = 2.0f / (opts.gridHeight - 1);
 
         source = createHeightfieldGrid(opts.gridWidth, opts.gridHeight, dx, dy,
                                        opts.gridAmplitude, opts.gridFrequency);
@@ -55,14 +58,17 @@ inline std::pair<Grid, Grid> createTestGrids(const CommonOptions& opts, bool ver
     }
     else // TwoHemispheres
     {
+        float dx = 0.2f;
+        float dy = 0.2f;
+
         if (verbose)
         {
             std::cout << "\tHemisphere radius: " << opts.hemisphereRadius << "\n";
             std::cout << "\tHemisphere separation: " << opts.hemisphereSeparation << "\n";
+            std::cout << "\tSpacing: dx=" << dx << ", dy=" << dy << "\n";
+            std::cout << "\tExtent: " << (opts.gridWidth - 1) * dx << " x "
+                      << (opts.gridHeight - 1) * dy << "\n";
         }
-
-        float dx = 0.2f;
-        float dy = 0.2f;
 
         source = createTwoHemispheresGrid(opts.gridWidth, opts.gridHeight, dx, dy,
                                           opts.hemisphereRadius, opts.hemisphereSeparation);

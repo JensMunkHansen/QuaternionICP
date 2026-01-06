@@ -493,6 +493,15 @@ void printCommonConfig(const CommonOptions& opts)
             case CommonOptions::LinearSolver::CudaSparseCholesky: std::cout << "CUDA_SPARSE_CHOLESKY"; break;
         }
         std::cout << "\n";
+
+        std::cout << "Preconditioner: ";
+        switch (opts.preconditioner)
+        {
+            case CommonOptions::Preconditioner::Identity: std::cout << "IDENTITY"; break;
+            case CommonOptions::Preconditioner::Jacobi: std::cout << "JACOBI"; break;
+            case CommonOptions::Preconditioner::SchurJacobi: std::cout << "SCHUR_JACOBI"; break;
+        }
+        std::cout << "\n";
     }
 
     std::cout << "\nOuter loop:\n";

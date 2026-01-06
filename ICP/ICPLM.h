@@ -111,6 +111,7 @@ InnerSolveResult solveInnerLMGainRatio(
     result.converged = false;
 
     Pose7 pose = initialPose;
+    const double rotationScale = params.rotationScale;
 
     // Trust region radius = 1 / lambda
     double radius = 1.0 / params.lm.lambda;
@@ -128,7 +129,7 @@ InnerSolveResult solveInnerLMGainRatio(
         int fwd_valid, rev_valid;
         double current_cost = buildNormalEquations<JacobianPolicy>(
             fwdCorrs, revCorrs, pose, rayDir, weighting,
-            H, b, fwd_valid, rev_valid);
+            H, b, fwd_valid, rev_valid, rotationScale);
 
         int valid_count = fwd_valid + rev_valid;
         result.rms = valid_count > 0 ? std::sqrt(current_cost / valid_count) : 0.0;
@@ -161,7 +162,7 @@ InnerSolveResult solveInnerLMGainRatio(
 
         // Trial step
         Pose7 pose_trial = pose;
-        applyDeltaAndNormalize(pose_trial, delta);
+        applyDeltaAndNormalize(pose_trial, delta, rotationScale);
 
         // Evaluate actual cost at trial pose
         double trial_cost = computeCostAtPose<JacobianPolicy>(
@@ -279,6 +280,7 @@ InnerSolveResult solveInnerLMSimple(
     Pose7 pose = initialPose;
     double lambda = params.lm.lambda;
     const bool use_adaptive = !params.lm.fixedLambda;
+    const double rotationScale = params.rotationScale;
 
     for (int iter = 0; iter < params.maxIterations; ++iter)
     {
@@ -290,7 +292,7 @@ InnerSolveResult solveInnerLMSimple(
         int fwd_valid, rev_valid;
         double current_cost = buildNormalEquations<JacobianPolicy>(
             fwdCorrs, revCorrs, pose, rayDir, weighting,
-            H, b, fwd_valid, rev_valid);
+            H, b, fwd_valid, rev_valid, rotationScale);
 
         int valid_count = fwd_valid + rev_valid;
         result.rms = valid_count > 0 ? std::sqrt(current_cost / valid_count) : 0.0;
@@ -318,7 +320,7 @@ InnerSolveResult solveInnerLMSimple(
 
         // Trial step
         Pose7 pose_trial = pose;
-        applyDeltaAndNormalize(pose_trial, delta);
+        applyDeltaAndNormalize(pose_trial, delta, rotationScale);
 
         // Evaluate cost at trial pose (no Jacobians needed)
         double trial_cost = computeCostAtPose<JacobianPolicy>(
@@ -352,7 +354,7 @@ InnerSolveResult solveInnerLMSimple(
             {
                 double alpha = lineSearch<JacobianPolicy>(
                     fwdCorrs, revCorrs, pose, delta, current_cost,
-                    rayDir, weighting, params.lineSearch);
+                    rayDir, weighting, params.lineSearch, rotationScale);
 
                 if (params.verbose && alpha < 1.0)
                 {
@@ -361,7 +363,7 @@ InnerSolveResult solveInnerLMSimple(
 
                 // Apply scaled step
                 Tangent6 scaledDelta = alpha * delta;
-                applyDeltaAndNormalize(pose, scaledDelta);
+                applyDeltaAndNormalize(pose, scaledDelta, rotationScale);
                 delta = scaledDelta;  // Update delta for convergence check
             }
             else
@@ -397,7 +399,7 @@ InnerSolveResult solveInnerLMSimple(
                 delta = -H_damped.ldlt().solve(b);
 
                 pose_trial = pose;
-                applyDeltaAndNormalize(pose_trial, delta);
+                applyDeltaAndNormalize(pose_trial, delta, rotationScale);
 
                 trial_cost = computeCostAtPose<JacobianPolicy>(
                     fwdCorrs, revCorrs, pose_trial, rayDir, weighting);
@@ -415,7 +417,7 @@ InnerSolveResult solveInnerLMSimple(
                     {
                         double alpha = lineSearch<JacobianPolicy>(
                             fwdCorrs, revCorrs, pose, delta, current_cost,
-                            rayDir, weighting, params.lineSearch);
+                            rayDir, weighting, params.lineSearch, rotationScale);
 
                         if (params.verbose && alpha < 1.0)
                         {
@@ -423,7 +425,7 @@ InnerSolveResult solveInnerLMSimple(
                         }
 
                         Tangent6 scaledDelta = alpha * delta;
-                        applyDeltaAndNormalize(pose, scaledDelta);
+                        applyDeltaAndNormalize(pose, scaledDelta, rotationScale);
                         delta = scaledDelta;
                     }
                     else

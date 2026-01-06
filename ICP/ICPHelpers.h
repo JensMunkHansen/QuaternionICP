@@ -133,10 +133,18 @@ inline bool isDeltaConverged(const Tangent6& delta, double transThreshold, doubl
  *
  * @param[in,out] pose Current pose, modified in place
  * @param delta        Tangent space update [v_x, v_y, v_z, w_x, w_y, w_z]
+ * @param rotationScale Characteristic length for rotation scaling (1.0 = no scaling)
  */
-inline void applyDeltaAndNormalize(Pose7& pose, const Tangent6& delta)
+inline void applyDeltaAndNormalize(Pose7& pose, const Tangent6& delta, double rotationScale = 1.0)
 {
-    pose = se3Plus(pose, delta);
+    if (rotationScale == 1.0)
+    {
+        pose = se3Plus(pose, delta);
+    }
+    else
+    {
+        pose = se3PlusScaled(pose, delta, rotationScale);
+    }
     Quaternion q(pose[3], pose[0], pose[1], pose[2]);
     q.normalize();
     pose.head<4>() << q.x(), q.y(), q.z(), q.w();
@@ -158,6 +166,7 @@ inline void applyDeltaAndNormalize(Pose7& pose, const Tangent6& delta)
  * @param rayDir       Ray direction for projection
  * @param weighting    Geometry weighting parameters
  * @param params       Line search configuration (alpha, beta, maxIterations)
+ * @param rotationScale Characteristic length for rotation scaling (1.0 = no scaling)
  * @return Optimal step size alpha in (0, 1]
  */
 template<typename JacobianPolicy = RayJacobianSimplified>
@@ -169,7 +178,8 @@ double lineSearch(
     double currentCost,
     const Vector3& rayDir,
     const GeometryWeighting& weighting,
-    const LineSearchParams& params)
+    const LineSearchParams& params,
+    double rotationScale = 1.0)
 {
     double alpha = params.alpha;
 
@@ -178,7 +188,7 @@ double lineSearch(
         // Trial step with scaled delta
         Tangent6 scaledDelta = alpha * delta;
         Pose7 pose_trial = pose;
-        applyDeltaAndNormalize(pose_trial, scaledDelta);
+        applyDeltaAndNormalize(pose_trial, scaledDelta, rotationScale);
 
         double trialCost = computeCostAtPose<JacobianPolicy>(
             fwdCorrs, revCorrs, pose_trial, rayDir, weighting);
@@ -214,6 +224,7 @@ double lineSearch(
  * @param[out] b         Gradient vector (6x1 vector J^T r)
  * @param[out] fwd_valid Number of valid forward correspondences used
  * @param[out] rev_valid Number of valid reverse correspondences used
+ * @param rotationScale  Characteristic length for rotation scaling (1.0 = no scaling)
  * @return Sum of squared residuals (cost)
  */
 template<typename JacobianPolicy = RayJacobianSimplified>
@@ -226,7 +237,8 @@ double buildNormalEquations(
     Matrix6& H,
     Vector6& b,
     int& fwd_valid,
-    int& rev_valid)
+    int& rev_valid,
+    double rotationScale = 1.0)
 {
     H.setZero();
     b.setZero();
@@ -234,7 +246,9 @@ double buildNormalEquations(
     fwd_valid = 0;
     rev_valid = 0;
 
-    Matrix7x6 P = plusJacobian7x6(pose);
+    Matrix7x6 P = (rotationScale == 1.0)
+                      ? plusJacobian7x6(pose)
+                      : plusJacobian7x6Scaled(pose, rotationScale);
 
     // Process forward correspondences (source→target)
     for (const auto& corr : fwdCorrs)

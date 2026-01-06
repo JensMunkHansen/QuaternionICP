@@ -53,13 +53,14 @@
 #include <ICP/ICPParams.h>
 #include <ICP/JacobiansAmbient.h>
 #include <ICP/SE3.h>
+#include <ICP/SE3CeresManifold.h>
 
 namespace ICP
 {
 
 // Note: Use toCeresSolverOptions() from ICPParams.h to convert InnerParams to ceres::Solver::Options
 
-/// Sophus SE3 manifold for Ceres
+/// Sophus SE3 manifold for Ceres (used by two-pose solver)
 using SophusSE3Manifold = Sophus::Manifold<Sophus::SE3>;
 
 /// Result from inner solver (after Ceres optimization)
@@ -122,7 +123,16 @@ CeresInnerSolveResult solveInnerCeres(
     ceres::Problem problem;
 
     // Set SE3 manifold for proper Lie group optimization
-    problem.AddParameterBlock(pose_data, Sophus::SE3d::num_parameters, new SophusSE3Manifold());
+    if (innerParams.useCustomManifold)
+    {
+        // Use our custom manifold with rotation scaling support
+        problem.AddParameterBlock(pose_data, 7, new SE3ScaledManifold(innerParams.rotationScale));
+    }
+    else
+    {
+        // Use Sophus manifold (ignores rotationScale, useful for comparison)
+        problem.AddParameterBlock(pose_data, Sophus::SE3d::num_parameters, new SophusSE3Manifold());
+    }
 
     Vector3 rayDirD = rayDir.cast<double>();
     double cosAngleThresh = weighting.enable_gate ? weighting.tau : 0.0;

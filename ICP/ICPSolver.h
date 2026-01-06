@@ -67,6 +67,8 @@ InnerSolveResult solveInnerGN(
     Pose7 pose = initialPose;
     const double lambda = params.damping;
 
+    const double rotationScale = params.rotationScale;
+
     for (int iter = 0; iter < params.maxIterations; ++iter)
     {
         result.iterations++;
@@ -77,7 +79,7 @@ InnerSolveResult solveInnerGN(
         int fwd_valid, rev_valid;
         double current_cost = buildNormalEquations<JacobianPolicy>(
             fwdCorrs, revCorrs, pose, rayDir, weighting,
-            H, b, fwd_valid, rev_valid);
+            H, b, fwd_valid, rev_valid, rotationScale);
 
         int valid_count = fwd_valid + rev_valid;
         result.rms = valid_count > 0 ? std::sqrt(current_cost / valid_count) : 0.0;
@@ -106,7 +108,7 @@ InnerSolveResult solveInnerGN(
         {
             double alpha = lineSearch<JacobianPolicy>(
                 fwdCorrs, revCorrs, pose, delta, current_cost,
-                rayDir, weighting, params.lineSearch);
+                rayDir, weighting, params.lineSearch, rotationScale);
 
             if (params.verbose && alpha < 1.0)
             {
@@ -117,7 +119,7 @@ InnerSolveResult solveInnerGN(
         }
 
         // Apply step
-        applyDeltaAndNormalize(pose, delta);
+        applyDeltaAndNormalize(pose, delta, rotationScale);
 
         // Check convergence using separate translation/rotation thresholds
         if (isDeltaConverged(delta, params.translationThreshold, params.rotationThreshold))

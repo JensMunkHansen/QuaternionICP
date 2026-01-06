@@ -65,6 +65,62 @@ TEST_CASE("solveInner with fixed correspondences", "[icp][inner][python]")
     }
 }
 
+TEST_CASE("rotationScale invariance", "[icp][inner][scaling]")
+{
+    SolverTestFixture fix;
+
+    // Create initial pose with both rotation and translation offset
+    Pose7 initialPose = SolverTestFixture::createPose({ 0.05, 0.02, -0.03 }, 0.05, 0.02, 0.08);
+    auto corrs = fix.computeCorrs(initialPose);
+
+    WARN("Forward correspondences: " << corrs.forward.size());
+    WARN("Reverse correspondences: " << corrs.reverse.size());
+
+    // Test with different rotation scales (wide range to stress-test)
+    std::vector<double> scales = { 1.0, 0.001, 0.01, 0.1, 0.5, 2.0, 10.0, 100.0, 1000.0 };
+    std::vector<Pose7> results;
+    std::vector<int> iterations;
+
+    for (double scale : scales)
+    {
+        auto params = Presets::gaussNewton(20, false);
+        params.rotationScale = scale;
+
+        auto result = solveInner<RayJacobianSimplified>(
+            corrs.forward, corrs.reverse, initialPose, fix.rayDir, fix.weighting, params);
+
+        results.push_back(result.pose);
+        iterations.push_back(result.iterations);
+
+        WARN("Scale " << scale << ": iterations=" << result.iterations
+                      << ", rms=" << std::scientific << result.rms);
+    }
+
+    // Verify all results are equivalent (final pose should be the same)
+    Pose7 reference = results[0];
+    for (size_t i = 1; i < results.size(); ++i)
+    {
+        // Check quaternion components (allowing for sign flip)
+        double quat_diff = std::min(
+            (results[i].head<4>() - reference.head<4>()).norm(),
+            (results[i].head<4>() + reference.head<4>()).norm());
+        CHECK(quat_diff < 1e-6);
+
+        // Check translation components
+        double trans_diff = (results[i].tail<3>() - reference.tail<3>()).norm();
+        CHECK(trans_diff < 1e-6);
+
+        WARN("Scale " << scales[i] << " vs 1.0: quat_diff=" << quat_diff
+                      << ", trans_diff=" << trans_diff);
+    }
+
+    WARN("\n=== Iteration summary ===");
+    for (size_t i = 0; i < scales.size(); ++i)
+    {
+        WARN("Scale " << scales[i] << ": " << iterations[i] << " iterations");
+    }
+}
+
 TEST_CASE("solveICP outer loop", "[icp][outer][python]")
 {
     SolverTestFixture fix;

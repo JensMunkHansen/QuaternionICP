@@ -72,6 +72,12 @@ cmake --build build/linux-gcc --config Release
    - ✗ Test with collection of up to 5000 grids
    - ✗ Performance optimization
 
+10. **Rotation Scaling for Two-Pose / MultiICP**
+    - ✗ Add `SE3ScaledManifold` support to `ICPCeresTwoPose.h` (currently uses `SophusSE3Manifold`)
+    - ✗ Update `MultiViewICP.cpp` to use scaled manifold with `params.rotationScale`
+    - ✗ Add `--rotation-scale` command-line parameter to `SingleICP` and `MultiICP`
+    - ✗ Test invariance for two-pose solver (similar to `ICPCeresTest.cpp` scaling test)
+
 ## Conventions
 
 - Quaternion storage: `[x, y, z, w]` (Eigen internal order)

@@ -300,6 +300,13 @@ struct InnerParams
     JacobianPolicy jacobianPolicy = JacobianPolicy::Simplified;  ///< Jacobian computation policy
     /// @}
 
+    /// @name Manifold Conditioning
+    /// @brief Scaling for improved optimization conditioning
+    /// @{
+    double rotationScale = 1.0;  ///< Characteristic length L for rotation scaling (1.0 = no scaling)
+    bool useCustomManifold = true;  ///< Use SE3ScaledManifold (true) or Sophus manifold (false, ignores rotationScale)
+    /// @}
+
     /// @name Ceres Backend Options
     /// @brief Only used when SessionParams::backend == Ceres
     /// @{

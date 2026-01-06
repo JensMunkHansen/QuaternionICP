@@ -399,6 +399,92 @@ inline Matrix7x6 plusJacobian7x6(const Pose7& x)
 }
 
 /**
+ * @brief SE(3) Plus operation with rotation scaling for conditioning.
+ *
+ * This is a modified Plus operation that applies a characteristic length scale
+ * to the rotation component, improving the conditioning of the optimization
+ * problem when translation and rotation have very different scales.
+ *
+ * The scaled tangent vector is:
+ * \f[
+ *   \delta' = S \delta, \quad S = \begin{bmatrix} I_3 & 0 \\ 0 & L I_3 \end{bmatrix}
+ * \f]
+ *
+ * This makes "1 unit of rotation (radian)" comparable to "L units of translation".
+ *
+ * @note This is a change of variables, not a change of the objective function.
+ *       The final result is invariant; only convergence speed is affected.
+ *
+ * @param x Current pose [qx, qy, qz, qw, tx, ty, tz]
+ * @param delta Tangent increment [v_x, v_y, v_z, w_x, w_y, w_z]
+ * @param rotationScale Characteristic length L (scales rotation columns)
+ * @return Updated pose
+ *
+ * @see @ref effective_conditioning for mathematical background
+ */
+inline Pose7 se3PlusScaled(const Pose7& x, const Tangent6& delta, double rotationScale)
+{
+    // Extract quaternion and translation
+    Quaternion q(x[3], x[0], x[1], x[2]); // w, x, y, z
+    q.normalize();
+    Vector3 t = x.tail<3>();
+
+    // Extract tangent components and apply scaling
+    Vector3 v = delta.head<3>();                    // translation part (unchanged)
+    Vector3 w = rotationScale * delta.tail<3>();    // rotation part (scaled by L)
+
+    // Right-multiplicative update with scaled rotation
+    Quaternion dq = quatExpSO3(w);
+    Quaternion q_new = (q * dq).normalized();
+
+    // Translation update uses scaled w
+    Matrix3 R = q.toRotationMatrix();
+    Matrix3 V = Vso3(w);
+    Vector3 t_new = t + R * (V * v);
+
+    // Pack result
+    Pose7 result;
+    result << q_new.x(), q_new.y(), q_new.z(), q_new.w(), t_new;
+    return result;
+}
+
+/**
+ * @brief SE(3) chart Jacobian with rotation scaling for conditioning.
+ *
+ * Returns the chart Jacobian for the scaled Plus operation:
+ * \f[
+ *   P_{\text{scaled}}(x) = P(x) \, S
+ * \f]
+ *
+ * where \f$S = \text{diag}(I_3, L \cdot I_3)\f$ scales the rotation columns.
+ *
+ * At the expansion point \f$\delta = 0\f$:
+ * \f[
+ *   P_{\text{scaled}}(x) =
+ *   \begin{bmatrix}
+ *     0 & L \cdot \frac{\partial \mathbf{q}}{\partial \boldsymbol{\omega}} \\
+ *     R & 0
+ *   \end{bmatrix}
+ * \f]
+ *
+ * @param x Current pose [qx, qy, qz, qw, tx, ty, tz]
+ * @param rotationScale Characteristic length L (scales rotation columns)
+ * @return 7x6 chart Jacobian P_scaled(x) evaluated at delta = 0
+ *
+ * @see @ref effective_conditioning for mathematical background
+ */
+inline Matrix7x6 plusJacobian7x6Scaled(const Pose7& x, double rotationScale)
+{
+    // Get the unscaled Jacobian
+    Matrix7x6 J = plusJacobian7x6(x);
+
+    // Scale the rotation columns (columns 3, 4, 5) by L
+    J.block<7, 3>(0, 3) *= rotationScale;
+
+    return J;
+}
+
+/**
  * @brief Project 7D ambient Jacobian to 6D local (tangent space) Jacobian.
  *
  * Computes \f$J_{\text{local}} = J_{\text{ambient}} \cdot P(x)\f$ where

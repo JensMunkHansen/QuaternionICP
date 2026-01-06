@@ -75,6 +75,7 @@ if(BUILD_DOCUMENTATION)
             ${PROJECT_SOURCE_DIR}/Doc/SimplifiedJacobianAnalysis.md
             ${PROJECT_SOURCE_DIR}/Doc/AmbientVersusTangent.md
             ${PROJECT_SOURCE_DIR}/Doc/JacobianPedantic.md
+            ${PROJECT_SOURCE_DIR}/Doc/EffectiveConditioning.md
             ${PROJECT_SOURCE_DIR}/ICP
         EXAMPLE_PATH ${PROJECT_SOURCE_DIR}/ICP
         IMAGE_PATH ${PROJECT_SOURCE_DIR}

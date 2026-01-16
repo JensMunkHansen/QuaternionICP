@@ -1,0 +1,27 @@
+var searchData=
+[
+  ['w_20c_0',['Ray-Projection Residual with Incidence Weighting w(c)',['../md_Doc_2JacobianPedantic.html',1,'']]],
+  ['w_20c_20a_20c_1',['4) Full derivative of r = w(c) * a/c',['../md_Doc_2JacobianPedantic.html#autotoc_md39',1,'']]],
+  ['w_20c_20and_20wp_20dw_20dc_20for_20your_20modes_2',['5) Computing w(c) and wp = dw/dc for your modes',['../md_Doc_2JacobianPedantic.html#autotoc_md41',1,'']]],
+  ['w_20r_20t_20rotation_3',['Quaternion w.r.t. Rotation',['../se3_full_chart_jacobian.html#se3_full_dq_dw',1,'']]],
+  ['w_20r_20t_20rotation_20away_20from_20delta_200_4',['Translation w.r.t. Rotation (Away from delta = 0)',['../se3_full_chart_jacobian.html#se3_full_dt_dw',1,'']]],
+  ['w_20r_20t_20translation_5',['Translation w.r.t. Translation',['../se3_full_chart_jacobian.html#se3_full_dt_dv',1,'']]],
+  ['weight_6',['weight',['../structICP_1_1GeometryWeighting.html#a5b579009f4473975ac59aeb82bf3b072',1,'ICP::GeometryWeighting']]],
+  ['weighting_7',['weighting',['../structICP_1_1OuterParams.html#a88b3e2a118bf170fe8f48b181883dc50',1,'ICP::OuterParams']]],
+  ['weighting_20w_20c_8',['Ray-Projection Residual with Incidence Weighting w(c)',['../md_Doc_2JacobianPedantic.html',1,'']]],
+  ['weightingmode_9',['WeightingMode',['../namespaceICP.html#a6306e200702607b27974a35f86073789',1,'ICP']]],
+  ['what_20ceres_20does_20internally_10',['What Ceres Does Internally',['../effective_conditioning.html#cond_ceres_internal',1,'']]],
+  ['what_20happens_20near_20convergence_11',['What Happens Near Convergence',['../simplified_jacobian_analysis.html#sja_convergence',1,'']]],
+  ['what_20remains_20unchanged_12',['What Remains Unchanged',['../effective_conditioning.html#cond_unchanged',1,'']]],
+  ['what_20the_20simplified_20jacobian_20is_20missing_13',['What the Simplified Jacobian is Missing',['../simplified_jacobian_analysis.html#sja_missing_term',1,'']]],
+  ['when_20a_20pure_206d_20tangent_20formulation_20makes_20sense_14',['When a Pure 6D Tangent Formulation Makes Sense',['../se3_ambient_vs_tangent.html#se3_when_tangent',1,'']]],
+  ['when_20simplified_20fails_15',['When Simplified Fails',['../ray_projection_jacobian.html#rpj_when_simplified',1,'']]],
+  ['why_20optimal_20epsilon_20remains_201e_206_20for_20simplified_16',['Why Optimal Epsilon Remains 1e-6 for Simplified',['../simplified_jacobian_analysis.html#sja_best_eps',1,'']]],
+  ['why_20the_20consistent_20jacobian_20matches_20fd_17',['Why the Consistent Jacobian Matches FD',['../simplified_jacobian_analysis.html#sja_consistent_validated',1,'']]],
+  ['why_20the_20simplified_20error_20is_20around_200_20005_20to_200_2001_18',['Why the Simplified Error is Around 0.005 to 0.01',['../simplified_jacobian_analysis.html#sja_error_magnitude',1,'']]],
+  ['why_20translation_20and_20rotation_20behave_20differently_19',['Why Translation and Rotation Behave Differently',['../epsilon_sweep_guide.html#esg_linear_vs_nonlinear',1,'']]],
+  ['with_20incidence_20weighting_20w_20c_20',['Ray-Projection Residual with Incidence Weighting w(c)',['../md_Doc_2JacobianPedantic.html',1,'']]],
+  ['with_20lie_20theory_21',['7. Conceptual alignment with Lie theory',['../se3_ambient_vs_tangent.html#autotoc_md27',1,'']]],
+  ['without_20finite_20differences_22',['Validating Without Finite Differences',['../ray_projection_jacobian.html#rpj_validation',1,'']]],
+  ['wp_20dw_20dc_20for_20your_20modes_23',['5) Computing w(c) and wp = dw/dc for your modes',['../md_Doc_2JacobianPedantic.html#autotoc_md41',1,'']]]
+];

@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['b_3a_20not_20enable_5fweight_0',['Case B: not enable_weight',['../md_Doc_2JacobianPedantic.html#autotoc_md43',1,'']]],
+  ['back_20ambient_20jacobians_1',['Chart Jacobian for Pulling Back Ambient Jacobians',['../SE3_8h.html#se3_chart_jac',1,'']]],
+  ['backend_2',['backend',['../structICP_1_1SessionParams.html#aae1b13d1f87768b67c8181f495c0701d',1,'ICP::SessionParams']]],
+  ['background_3',['Background',['../se3_ambient_vs_tangent.html#se3_background',1,'']]],
+  ['backward_20case_20target_20to_20source_4',['Backward Case (Target to Source)',['../ray_projection_jacobian.html#rpj_backward',1,'']]],
+  ['backward_20residual_20target_20source_20under_20right_20multiplication_5',['6) Backward residual (target -&gt; source) under right-multiplication',['../md_Doc_2JacobianPedantic.html#autotoc_md46',1,'']]],
+  ['basic_20jacobians_6',['3) SE(3) right-multiplication perturbation and basic Jacobians',['../md_Doc_2JacobianPedantic.html#autotoc_md37',1,'']]],
+  ['behave_20differently_7',['Why Translation and Rotation Behave Differently',['../epsilon_sweep_guide.html#esg_linear_vs_nonlinear',1,'']]],
+  ['behavior_20summary_8',['Finite Difference Behavior Summary',['../ray_projection_jacobian.html#rpj_fd_behavior',1,'']]],
+  ['beta_9',['beta',['../structICP_1_1LineSearchParams.html#aa092b92d600c8591ef710aa53d73a8c2',1,'ICP::LineSearchParams']]],
+  ['better_20solver_20interoperability_10',['3. Better solver interoperability',['../se3_ambient_vs_tangent.html#autotoc_md19',1,'']]],
+  ['between_20left_20and_20right_20jacobians_11',['Cross-Validation Between Left and Right Jacobians',['../jacobian_validation.html#jv_cross_validation',1,'']]],
+  ['bidirectionalcorrs_12',['BidirectionalCorrs',['../structICP_1_1BidirectionalCorrs.html',1,'ICP']]],
+  ['blocks_20that_20are_20always_20zero_13',['Blocks That Are Always Zero',['../se3_full_chart_jacobian.html#se3_full_zero_blocks',1,'']]],
+  ['body_20frame_14',['Right-Multiplicative Update (Body Frame)',['../SE3_8h.html#se3_update',1,'']]],
+  ['both_20consistent_20and_20simplified_15',['Translation Jacobian (Both Consistent and Simplified)',['../ray_projection_jacobian.html#rpj_trans_jacobian',1,'']]],
+  ['both_20terms_20depend_20on_20rotation_16',['Both Terms Depend on Rotation',['../ray_projection_jacobian.html#rpj_rot_dependence',1,'']]],
+  ['build_17',['build',['../classICP_1_1EmbreeBackend.html#a73ae8e6949646fe70be0c418264d07a4',1,'ICP::EmbreeBackend::build()'],['../classICP_1_1IntersectionBackend.html#a0ad9dc04868cf5cb91dd49a484344da1',1,'ICP::IntersectionBackend::build()'],['../classICP_1_1GridSearchBackend.html#a8c8c844be28c8d1375ea767407d7d916',1,'ICP::GridSearchBackend::build()']]],
+  ['build_20dependencies_18',['1. Build Dependencies',['../index.html#autotoc_md3',1,'']]],
+  ['build_20project_19',['2. Build Project',['../index.html#autotoc_md4',1,'']]],
+  ['buildcorrespondencematrix_20',['buildCorrespondenceMatrix',['../namespaceICP.html#a415809f073426277d4579881bb5596f7',1,'ICP']]],
+  ['buildedges_21',['buildEdges',['../namespaceICP.html#abce2901084b4a8b6ce0b6aac3fd49423',1,'ICP']]],
+  ['building_22',['Building',['../index.html#autotoc_md2',1,'']]],
+  ['buildnormalequations_23',['buildNormalEquations',['../namespaceICP.html#aa8de359433b04826046cc0ba64a547c3',1,'ICP']]],
+  ['buildnormalequationsleft_24',['buildNormalEquationsLeft',['../namespaceICP.html#a93fbc912b24c7af2d1d25a29ed9172be',1,'ICP']]]
+];

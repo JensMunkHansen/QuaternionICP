@@ -1,0 +1,25 @@
+var searchData=
+[
+  ['valid_5fcount_0',['valid_count',['../structICP_1_1InnerSolveResult.html#a59edfad26c3bc57b32707445cb7f3ea4',1,'ICP::InnerSolveResult']]],
+  ['validating_20left_20vs_20right_20jacobians_20on_20so_203_1',['Validating Left vs Right Jacobians on SO(3)',['../jacobian_validation.html',1,'']]],
+  ['validating_20simplified_20vs_20consistent_20jacobians_2',['Validating Simplified vs Consistent Jacobians',['../epsilon_sweep_guide.html#esg_quotient_rule',1,'']]],
+  ['validating_20without_20finite_20differences_3',['Validating Without Finite Differences',['../ray_projection_jacobian.html#rpj_validation',1,'']]],
+  ['validation_20between_20left_20and_20right_20jacobians_4',['Cross-Validation Between Left and Right Jacobians',['../jacobian_validation.html#jv_cross_validation',1,'']]],
+  ['validation_20checklist_5',['validation checklist',['../epsilon_sweep_guide.html#esg_checklist',1,'Validation Checklist'],['../jacobian_validation.html#jv_checklist',1,'Validation Checklist']]],
+  ['validation_20methodology_6',['Validation Methodology',['../ray_projection_overview.html#rpo_validation',1,'']]],
+  ['validation_20on_20se_203_7',['Finite-Difference Jacobian Validation on SE(3)',['../epsilon_sweep_guide.html',1,'']]],
+  ['validation_20primary_20test_8',['Finite-Difference Validation (Primary Test)',['../jacobian_validation.html#jv_fd_validation',1,'']]],
+  ['vector2_9',['Vector2',['../namespaceICP.html#a396bc5f0198f9403e5298e1380f8e55a',1,'ICP']]],
+  ['vector3_10',['Vector3',['../namespaceICP.html#ae0d90165be08ccb0384b3b57094fdc09',1,'ICP']]],
+  ['vector4_11',['Vector4',['../namespaceICP.html#ade31ec9dd6ce7af9cc3c1cefddb51765',1,'ICP']]],
+  ['vector6_12',['Vector6',['../namespaceICP.html#a66f1a56336ae372f3f9a927ba65f5928',1,'ICP']]],
+  ['vectorx_13',['VectorX',['../namespaceICP.html#a56303a9dd9ac79e285961fa06ff43f8f',1,'ICP']]],
+  ['verbose_14',['verbose',['../structICP_1_1InnerParams.html#af4d705fbe2e52f18761ce1bb39dc232b',1,'ICP::InnerParams::verbose'],['../structICP_1_1OuterParams.html#a586e42fa45044fb920a5e343c7629b49',1,'ICP::OuterParams::verbose'],['../structICP_1_1SessionParams.html#a64e1743085181d618ce7a41684e333bf',1,'ICP::SessionParams::verbose']]],
+  ['via_20manifold_20scaling_15',['Effective Conditioning via Manifold Scaling',['../effective_conditioning.html',1,'']]],
+  ['vs_206d_20manifold_20update_16',['Ambient 7D Storage vs. 6D Manifold Update',['../SE3_8h.html#se3_manifold',1,'']]],
+  ['vs_206d_20tangent_20parameterization_17',['SE(3) Optimization: 7D Ambient vs 6D Tangent Parameterization',['../se3_ambient_vs_tangent.html',1,'']]],
+  ['vs_20consistent_20jacobians_18',['Validating Simplified vs Consistent Jacobians',['../epsilon_sweep_guide.html#esg_quotient_rule',1,'']]],
+  ['vs_20right_20jacobians_20on_20so_203_19',['Validating Left vs Right Jacobians on SO(3)',['../jacobian_validation.html',1,'']]],
+  ['vs_20translation_20',['Concrete Example: Scaling Rotation vs Translation',['../effective_conditioning.html#cond_example',1,'']]],
+  ['vso3_21',['Vso3',['../namespaceICP.html#a4b3732fc4a84e1815c71cbb68afef37d',1,'ICP']]]
+];

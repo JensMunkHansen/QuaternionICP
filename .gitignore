@@ -4,7 +4,8 @@ Linux/
 Windows/
 Darwin/
 
-# External data - EXR files tracked via Git LFS
+# External data - EXR files (local only, not tracked)
+ExternalData/*.exr
 
 # IDE
 .vscode/
